@@ -1,0 +1,17 @@
+#!/bin/bash
+
+export GTK2_RC_FILES=/usr/share/themes/Adwaita/gtk-2.0/gtkrc
+
+if [ -L "$0" ]; then
+    cmd="$(basename "$0")"
+    set -- "$cmd" "$@"
+fi
+
+# Minified path
+PATH=/sbin:/usr/sbin:/usr/local/bin:/bin:/usr/bin:/usr/bin/X11:/usr/games
+# Special case one thing: iceweasel
+if [[ "$0" =~ iceweasel ]]; then
+    eatmydata  "$@"
+else
+    $@
+fi
