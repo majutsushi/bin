@@ -24,8 +24,10 @@ for idx in range(0, len(tiers)):
     if salary < thresh:
         break
 
-print 'salary: ' + str(salary)
-print 'tax: ' + str(tax)
+print 'annual gross: ' + str(salary)
+print 'monthly gross: ' + str(round(salary / 12, 2))
 print 'annual net: ' + str(salary - tax)
+print 'annual tax: ' + str(tax)
 print 'monthly net: ' + str(round((salary - tax) / 12, 2))
+print 'monthly tax: ' + str(round(tax / 12, 2))
 print 'effective rate: ' + str(round(tax/salary * 100, 2)) + '%'
