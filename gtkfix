@@ -13,5 +13,5 @@ PATH=/sbin:/usr/sbin:/usr/local/bin:/bin:/usr/bin:/usr/bin/X11:/usr/games
 if [[ "$0" =~ iceweasel ]]; then
     eatmydata  "$@"
 else
-    $@
+    "$@"
 fi
