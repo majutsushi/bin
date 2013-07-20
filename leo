@@ -2,45 +2,12 @@
 # Author: Jan Larres <jan@majutsushi.net>
 # License: MIT/X11
 
+import curses
 import urllib
 import urllib2
 import sys
 import re
 from BeautifulSoup import BeautifulSoup
-
-sgr0 = ''
-bold = ''
-rev = ''
-sitm = ''
-ritm = ''
-smul = ''
-rmul = ''
-
-if sys.stdout.isatty():
-    try:
-        import curses
-        curses.setupterm()
-        sgr0 = curses.tigetstr('sgr0')
-        bold = curses.tigetstr('bold')
-        rev  = curses.tigetstr('rev')
-        sitm = curses.tigetstr('sitm')
-        ritm = curses.tigetstr('ritm')
-        smul = curses.tigetstr('smul')
-        rmul = curses.tigetstr('rmul')
-    except:
-        sgr0 = '\033[0m'
-        bold = '\033[1m'
-        rev  = '\033[7m'
-        sitm = '\033[3m'
-        ritm = '\033[23m'
-        smul = '\033[4m'
-        rmul = '\033[24m'
-
-if len(sys.argv) == 1:
-    print 'Usage: leo <words>'
-    exit()
-
-words = ' '.join(sys.argv[1:])
 
 def process(s):
     s = re.sub(r'<b>',       bold, s)
@@ -58,6 +25,30 @@ def process(s):
     s = re.sub(r'&nbsp;', '', s)
     s = re.sub(r'\*\)$', '', s)
     return s
+
+sgr0 = ''
+bold = ''
+rev = ''
+sitm = ''
+ritm = ''
+smul = ''
+rmul = ''
+
+if sys.stdout.isatty():
+    curses.setupterm()
+    sgr0 = curses.tigetstr('sgr0')
+    bold = curses.tigetstr('bold')
+    rev  = curses.tigetstr('rev')
+    sitm = curses.tigetstr('sitm')
+    ritm = curses.tigetstr('ritm')
+    smul = curses.tigetstr('smul')
+    rmul = curses.tigetstr('rmul')
+
+if len(sys.argv) == 1:
+    print 'Usage: leo <words>'
+    exit()
+
+words = ' '.join(sys.argv[1:])
 
 print 'Searching for "' + words + '" ...'
 
