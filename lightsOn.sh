@@ -111,6 +111,13 @@ isAppRunning()
         fi
     fi
 
+    # Wine (for games)
+    if [[ $activ_win_title =~ Wine ]]; then
+        if [[ $(pgrep -c wine) -ge 1 ]]; then
+            return 0
+        fi
+    fi
+
     return 1
 }
 
