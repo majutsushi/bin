@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+
+import imp
+
+_hg = imp.load_source('_hg', '/usr/share/doc/git/contrib/remote-helpers/git-remote-hg')
+
+sys.exit(git-remote-hg.main(sys.argv))
