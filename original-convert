@@ -1,0 +1,114 @@
+#!/usr/bin/env python
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+
+import os
+import sqlite3
+import sys
+import time
+from wand.image import Image, ORIENTATION_TYPES
+from zipfile import ZipFile
+
+DBFILE = os.environ['HOME'] + '/.local/share/shotwell/data/photo.db'
+
+if len(sys.argv) != 2:
+    print 'usage: %s <description>' % os.path.basename(sys.argv[0])
+    sys.exit(1)
+
+for dir in ['comments', 'hq', 'lq', 'thumbs', 'zip']:
+    os.mkdir(dir)
+os.chmod('comments', 0777)
+
+with open('.htaccess', 'w') as f:
+    f.write("""
+<Files info.txt>
+        deny from all
+</Files>
+"""[1:])
+
+files = filter(lambda f: f.lower().endswith('.jpg'), os.listdir('.'))
+imgdict = dict()
+
+print 'Analyzing metadata ...'
+
+for fname in files:
+    with Image(filename=fname) as img:
+        tag = img.metadata.get('exif:DateTimeOriginal')
+        timestamp = time.strptime(tag, "%Y:%m:%d %H:%M:%S")
+        imgdict[timestamp] = fname
+
+timestamps = imgdict.keys()
+timestamps.sort()
+
+dbconn = sqlite3.connect(DBFILE)
+cursor = dbconn.cursor()
+
+for idx, key in enumerate(timestamps):
+    idx += 1
+    fname = imgdict[key]
+    cursor.execute("SELECT title FROM PhotoTable WHERE filename LIKE ?",
+                   ("%" + fname,))
+    desc = cursor.fetchone()[0].encode('utf-8')
+    print '%s: %s' % (fname, desc)
+    with open('comments/%s.txt' % idx, 'w') as f:
+        f.write('<span>photo %s</span> %s\n' % (idx, desc))
+
+    newfile = 'img-%s.jpg' % idx
+    os.rename(fname, newfile)
+
+    if desc != '':
+        with open('comments.txt', 'a') as f:
+            f.write('%s: %s\n' % (newfile, desc))
+
+    with Image(filename=newfile) as img:
+        # http://sylvana.net/jpegcrop/exif_orientation.html
+        if img.orientation != ORIENTATION_TYPES[1]:
+            if img.orientation == ORIENTATION_TYPES[2]:
+                img.flop()
+            elif img.orientation == ORIENTATION_TYPES[3]:
+                img.rotate(180)
+            elif img.orientation == ORIENTATION_TYPES[4]:
+                img.flip()
+            elif img.orientation == ORIENTATION_TYPES[5]:
+                img.rotate(270)
+                img.flip()
+            elif img.orientation == ORIENTATION_TYPES[6]:
+                img.rotate(90)
+            elif img.orientation == ORIENTATION_TYPES[7]:
+                img.rotate(90)
+                img.flip()
+            elif img.orientation == ORIENTATION_TYPES[8]:
+                img.rotate(270)
+            img.orientation = ORIENTATION_TYPES[1]
+
+        for newsize, quality, dir in [['2000x2000>', 90, 'hq'],
+                                      ['640x640>',   90, 'lq'],
+                                      ['120x120>',   60, 'thumbs']]:
+            with img.clone() as newimg:
+                newimg.transform(resize=newsize)
+                newimg.compression_quality = quality
+                newimg.save(filename='%s/%s' % (dir, newfile))
+
+    # os.rename(newfile, 'hq/%s' % newfile)
+    os.unlink(newfile)
+
+dbconn.close()
+
+with ZipFile('zip/hq.zip', 'w') as zipfile:
+    for f in os.listdir('hq'):
+        zipfile.write('hq/' + f, f)
+    zipfile.write('comments.txt')
+
+os.unlink('comments.txt')
+
+galleryname = os.path.basename(os.path.realpath(os.path.curdir))
+ts = timestamps[0]
+gallerydate = '%02d.%02d.%d' % (ts.tm_mday, ts.tm_mon, ts.tm_year)
+gallerydesc = sys.argv[1]
+
+with open('info.txt', 'w') as f:
+    f.write("""
+name|%s
+date|%s
+description|%s
+"""[1:] % (galleryname, gallerydate, gallerydesc))
