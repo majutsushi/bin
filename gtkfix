@@ -12,6 +12,9 @@ PATH=/sbin:/usr/sbin:/usr/local/bin:/bin:/usr/bin:/usr/bin/X11:/usr/games
 # Special case one thing: iceweasel
 if [[ "$0" =~ iceweasel ]]; then
     eatmydata  "$@"
+elif [[ "$0" =~ firefox ]]; then
+    shift
+    $HOME/apps/firefox/firefox "$@"
 else
     "$@"
 fi
