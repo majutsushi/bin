@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export GTK2_RC_FILES=$HOME/.etc/gtkfix.gtkrc
+export GTK2_RC_FILES=$HOME/.etc/gtk/gtkfix.gtkrc
 
 if [ -L "$0" ]; then
     cmd="$(basename "$0")"
