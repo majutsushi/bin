@@ -9,11 +9,11 @@ run_vim() {
 }
 
 if [[ -n $TMUX ]]; then
-    OLDTITLE=$(tmux display-message -p "#{pane_title}")
+    [[ -z "$SUDO_USER" ]] && OLDTITLE=$(tmux display-message -p "#{pane_title}")
 
     run_vim "$@"
 
-    echo -e "\e]0;${OLDTITLE}\e\\"
+    [[ -z "$SUDO_USER" ]] && echo -e "\e]0;${OLDTITLE}\e\\"
 else
     run_vim "$@"
 fi
