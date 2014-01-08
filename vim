@@ -5,7 +5,20 @@ run_vim() {
     MYDIR="$(dirname $(readlink -f "$0"))"
     NEWPATH=$(echo $PATH | sed -r -e "s,${MYDIR}/?:,,")
     VIMBIN=$(PATH=$NEWPATH which vim)
-    command $VIMBIN "$@"
+
+    if [[ -n $RANGER_LEVEL && -n $TMUX ]]; then
+        # Hacky quoting preservation
+        declare -a files
+        for i in "$@"; do
+            i=\"$i\"
+            files=( $files "$i" )
+        done
+        CMD="command $VIMBIN "${files[@]}""
+
+        tmux new-window -a -c '#{pane_current_path}' "$CMD"
+    else
+        command $VIMBIN "$@"
+    fi
 }
 
 if [[ -n $TMUX ]]; then
