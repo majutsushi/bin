@@ -55,8 +55,8 @@ checkFullscreen()
         fi
 
         # Check if Active Window (the foremost window) is in fullscreen state
-        isActivWinFullscreen=$(DISPLAY=:0.${display} xprop -id $activ_win_id | grep _NET_WM_STATE_FULLSCREEN)
-        if [[ $isActivWinFullscreen =~ NET_WM_STATE_FULLSCREEN ]]; then
+        props=$(DISPLAY=:0.${display} xprop -id $activ_win_id)
+        if echo $props | grep -qE "(_NET_WM_STATE_FULLSCREEN|plugin-container)"; then
             if isAppRunning; then
                 delayScreensaver
             fi
