@@ -48,7 +48,11 @@ for idx, key in enumerate(timestamps):
     fname = imgdict[key]
     cursor.execute("SELECT title FROM PhotoTable WHERE filename LIKE ?",
                    ("%" + fname,))
-    desc = cursor.fetchone()[0].encode('utf-8')
+    desc = cursor.fetchone()[0]
+    if desc:
+        desc = desc.encode('utf-8')
+    else:
+        desc = ''
     print '%s: %s' % (fname, desc)
     with open('comments/%s.txt' % idx, 'w') as f:
         f.write('<span>photo %s</span> %s\n' % (idx, desc))
