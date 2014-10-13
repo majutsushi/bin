@@ -1,0 +1,9 @@
+#!/bin/bash
+# Based on a script from this article:
+# https://www.atlassian.com/git/articles/extending-git/
+
+git for-each-ref --format="object=%(objectname:short) date=%(authordate:relative) author=%(authorname) ref=%(refname:short) subject=%(subject)" --sort="-authordate" --shell refs/remotes | \
+while read entry; do
+    eval "$entry"
+    printf "$(tput setaf 4)%s\t$(tput setaf 3)%s\t$(tput setaf 2)%s\t$(tput setaf 1)%s $(tput sgr0)%s\n" "$date" "$object" "$author" "$ref" "$subject"
+done | column -s '	' -t
