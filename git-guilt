@@ -1,0 +1,116 @@
+#!/usr/bin/env python
+# Python reimplementation of https://bitbucket.org/tpettersen/git-guilt/
+
+import os
+import re
+import sys
+from multiprocessing import Pool
+from subprocess import check_output, Popen, PIPE, CalledProcessError
+
+try:
+    reporoot = check_output(["git", "rev-parse", "--show-toplevel"]).strip()
+except CalledProcessError:
+    sys.exit(1)
+
+def git(args, exit_on_error):
+    args.insert(0, "git")
+    p = Popen(args, stdout=PIPE, stderr=PIPE, cwd=reporoot)
+    (stdout, stderr) = p.communicate()
+
+    if p.returncode != 0 and exit_on_error:
+        print 'Error executing "' + ' '.join(args) + '"!'
+        print stderr
+        exit()
+
+    return stdout.splitlines()
+
+blame_re = re.compile(r"^[^(]*\((.*?) \d{4}-\d{2}-\d{2}")
+def count_authors(dic, line):
+    match = blame_re.match(line)
+    if match:
+        author = match.group(1).strip()
+        dic[author] = dic.get(author, 0) + 1
+    return dic
+
+def blame(entry):
+    args = ["blame", "--", entry["file"]]
+    if entry["rev"]:
+        args.insert(1, entry["rev"])
+    entry["bucket"] = reduce(count_authors, git(args, False), {})
+    return entry
+
+def merge_authors(dic, entry):
+    rev = entry["rev"]
+    if rev not in dic:
+        dic[rev] = {}
+    bucket = entry["bucket"]
+    for author in bucket.keys():
+        dic[rev][author] = dic[rev].get(author, 0) + bucket[author]
+    return dic
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        rev1 = "HEAD"
+        rev2 = None
+    elif len(sys.argv) == 2:
+        rev1 = sys.argv[1]
+        rev2 = None
+    elif len(sys.argv) == 3:
+        rev1 = sys.argv[1]
+        rev2 = sys.argv[2]
+    else:
+        print "Usage: " + sys.argv[0] + " [rev1 [rev2]]"
+        sys.exit(1)
+
+    diff_args = ["diff", "--name-only", rev1]
+    if rev2:
+        diff_args.append(rev2)
+
+    changed_files = git(diff_args, True)
+    if len(changed_files) == 0:
+        print "No changes"
+        sys.exit(0)
+
+    queued_blames = []
+
+    for file in changed_files:
+        queued_blames.append({"file": file, "rev": rev1, "bucket": {}})
+    for file in changed_files:
+        queued_blames.append({"file": file, "rev": rev2, "bucket": {}})
+
+    pool = Pool()
+
+    finished_blames = pool.map(blame, queued_blames)
+    blames = reduce(merge_authors, finished_blames, {})
+
+    deltas = []
+    for author in blames[rev1].keys():
+        delta = blames[rev2].get(author, 0) - blames[rev1][author]
+        if delta != 0:
+            deltas.append({"author": author, "delta": delta})
+
+    for author in blames[rev2].keys():
+        if author not in blames[rev1]:
+            # New author
+            deltas.append({"author": author, "delta": blames[rev2][author]})
+
+    deltas.sort(key=lambda x: x["delta"], reverse=True)
+
+    max_author_len = reduce(lambda x, y: max(x, len(y["author"])), deltas, 0)
+    for entry in deltas:
+        author = entry["author"][:20]
+        delta = entry["delta"]
+        max_symbols = 50
+        symbol = "+" if delta > 0 else "-"
+        color = "32" if delta > 0 else "31"
+
+        if abs(delta) > max_symbols:
+            elipsis = "(" + str(delta) + ")"
+            delta_str = symbol * (max_symbols - len(elipsis)) + elipsis
+        else:
+            delta_str = symbol * abs(delta)
+
+        if sys.stdout.isatty():
+            delta_str = "\x1b[{}m{}\x1b[0m".format(color, delta_str)
+        print "{:<{width}}   {}".format(author, delta_str, width=min(max_author_len, 20))
