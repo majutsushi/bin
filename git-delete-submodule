@@ -1,0 +1,30 @@
+#!/bin/bash
+
+submodule="$1"
+
+if [[ -z "$submodule" ]]; then
+    echo "usage: $0 <submodule>" 1>&2
+    exit 1
+fi
+STATUS=$(git submodule status "$submodule" 2>/dev/null)
+if [[ $? -ne 0 || -z "$STATUS" ]]; then
+    echo "not a submodule: $submodule"
+    exit 1
+fi
+if [[ ! -f .gitmodules ]]; then
+    echo ".gitmodules file not found" 1>&2
+    exit 1
+fi
+
+NAME=$(echo "$submodule" | sed 's,/$,,g')
+if [[ -z $(git config --file=.gitmodules submodule."$NAME".url) ]]; then
+    echo "submodule not found" 1>&2
+    exit 1
+fi
+
+git submodule deinit "$NAME"
+git rm --cached "$NAME"
+rm -rf "$submodule"
+rm -rf .git/modules/"$NAME"
+git config --file=.gitmodules --remove-section submodule."$NAME"
+git add .gitmodules
