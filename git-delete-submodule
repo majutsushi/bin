@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 submodule="$1"
 
 if [[ -z "$submodule" ]]; then
