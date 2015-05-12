@@ -1,0 +1,19 @@
+#!/bin/bash
+
+Xephyr -ac -br -noreset -screen 800x600 :1 &
+declare -r XEPHYR_PID=$!
+
+trap 'kill $XEPHYR_PID' EXIT
+
+sleep 1
+DISPLAY=:1
+
+xrdb -merge ~/.Xresources
+setxkbmap -model pc105 -layout us -option ctrl:nocaps -option terminate:ctrl_alt_bksp
+xset +fp ~/.local/share/fonts
+
+if (( $# > 0 )); then
+    command "$@"
+fi
+
+wait $XEPHYR_PID
