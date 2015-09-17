@@ -21,8 +21,11 @@ function sshrc() {
             chmod +x \$SSHHOME/sshrc
 
             echo $'"$( cat << 'EOF' | xxd -p
-if [ -e /etc/bash.bashrc ]; then source /etc/bash.bashrc; fi
-if [ -e ~/.bashrc ]; then source ~/.bashrc; fi
+if [ -r /etc/profile ]; then source /etc/profile; fi
+if [ -r ~/.bash_profile ]; then source ~/.bash_profile
+elif [ -r ~/.bash_login ]; then source ~/.bash_login
+elif [ -r ~/.profile ]; then source ~/.profile
+fi
 export PATH=$PATH:$SSHHOME
 source $SSHHOME/.sshrc;
 EOF
@@ -31,8 +34,11 @@ EOF
             echo $'"$( cat << 'EOF' | xxd -p
 #!/usr/bin/env bash
 exec bash --rcfile <(echo '
-if [ -e /etc/bash.bashrc ]; then source /etc/bash.bashrc; fi
-if [ -e ~/.bashrc ]; then source ~/.bashrc; fi
+[ -r /etc/profile ] && source /etc/profile
+if [ -r ~/.bash_profile ]; then source ~/.bash_profile
+elif [ -r ~/.bash_login ]; then source ~/.bash_login
+elif [ -r ~/.profile ]; then source ~/.profile
+fi
 source '$SSHHOME'/.sshrc;
 export PATH=$PATH:'$SSHHOME'
 ') "$@"
@@ -45,12 +51,13 @@ EOF
             bash --rcfile \$SSHHOME/sshrc.bashrc
             "
     else
-        echo "No such file: $SSHHOME/.sshrc"
+        echo "No such file: $SSHHOME/.sshrc" >&2
+        exit 1
     fi
 }
-if [ $1 ]; then
+if [ "$1" ]; then
     command -v xxd >/dev/null 2>&1 || { echo >&2 "sshrc requires xxd to be installed locally, but it's not. Aborting."; exit 1; }
-    sshrc $@
+    sshrc "$@"
 else
     ssh
 fi
