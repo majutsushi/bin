@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+#
+# Create a new album on Facebook and upload all JPG pictures in the current
+# directory to it, taking the descriptions from the Shotwell database
+#
+# In order to use this script you have to jump through some Facebook hoops
+# first:
+#
+# 1. Create a new app here: https://developers.facebook.com/apps/?action=create
+# 2. Save the App ID and the App Secret to your keyring with Python:
+#
+#      >>> import keyring
+#      >>> keyring.set_password("facebook", "appid", "myappid")
+#      >>> keyring.set_password("facebook", "appsecret", "myappsecret")
+#
+# 3. In Settings -> Advanced, enable "Embedded Browser OAuth Login", and
+#    add http://127.0.0.1:8080 to the "Valid OAuth redirect URIs" list.
+# 4. In "Status & Review" enable the switch to make the app available to the
+#    general public, or no one but you will be able to see any of the uploaded
+#    photos regardless of the privacy settings of the album.
+#
+# Originally based on:
+# http://wayback.archive.org/web/20140808143656/http://blog.carduner.net/2010/05/26/authenticating-with-facebook-on-the-command-line-using-python/
+
+import http.server
+import json
+import keyring
+import os
+import requests
+import sqlite3
+import sys
+import time
+import urllib.request, urllib.parse, urllib.error
+import webbrowser
+
+from wand.image import Image
+
+APP_ID = keyring.get_password('facebook', 'appid')
+APP_SECRET = keyring.get_password('facebook', 'appsecret')
+FB_URL = 'https://graph.facebook.com'
+REDIRECT_URI = 'http://127.0.0.1:8080/'
+ACCESS_TOKEN = None
+DBFILE = os.environ['HOME'] + '/.local/share/shotwell/data/photo.db'
+
+def addtoken(args):
+    args = args or {}
+    if ACCESS_TOKEN:
+        args['access_token'] = ACCESS_TOKEN
+    return args
+
+def get(path, params=None):
+    r = requests.get(FB_URL + path, params=addtoken(params))
+    r.raise_for_status()
+    return r
+
+def post(path, data=None, files=None):
+    r = requests.post(FB_URL + path, data=addtoken(data), files=files)
+    r.raise_for_status()
+    return r
+
+def get_url(path, args=None):
+    params = urllib.parse.urlencode(addtoken(args))
+    return FB_URL + path + '?' + params
+
+class RequestHandler(http.server.BaseHTTPRequestHandler):
+
+    def out(self, s):
+        self.wfile.write(s.encode('utf-8'))
+
+    def do_GET(self):
+        global ACCESS_TOKEN
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+
+        parsed_url = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        code = parsed_url.get('code')
+        code = code[0] if code else None
+        if code is None:
+            self.out("Sorry, authentication failed.<br/>")
+            self.out(parsed_url.get('error')[0] + "<br/>")
+            self.out(parsed_url.get('error_description')[0])
+            sys.exit(1)
+        response = get('/oauth/access_token', {'client_id': APP_ID,
+                                               'redirect_uri': REDIRECT_URI,
+                                               'client_secret': APP_SECRET,
+                                               'code': code})
+        ACCESS_TOKEN = urllib.parse.parse_qs(response.text)['access_token'][0]
+        keyring.set_password('facebook', 'accesstoken', ACCESS_TOKEN)
+        self.out("You have successfully logged in to facebook. "
+                 "You can close this window now.")
+
+def set_access_token():
+    global ACCESS_TOKEN
+    ACCESS_TOKEN = keyring.get_password('facebook', 'accesstoken')
+    if ACCESS_TOKEN is None:
+        print("Logging you in to facebook...")
+        webbrowser.open(get_url('/oauth/authorize',
+                                {'client_id': APP_ID,
+                                 'redirect_uri': REDIRECT_URI,
+                                 'scope': 'user_photos,publish_actions'}))
+
+        httpd = http.server.HTTPServer(('127.0.0.1', 8080), RequestHandler)
+        while ACCESS_TOKEN is None:
+            httpd.handle_request()
+
+def get_photos():
+    files = [f for f in os.listdir('.') if f.lower().endswith('.jpg')]
+    photos = []
+
+    print('Analyzing metadata ...')
+
+    for fname in files:
+        with Image(filename=fname) as img:
+            tag = img.metadata.get('exif:DateTimeOriginal')
+            timestamp = time.strptime(tag, "%Y:%m:%d %H:%M:%S")
+            photos.append({'fname': fname, 'timestamp': timestamp})
+
+    photos.sort(key=lambda photo: photo['timestamp'])
+    return [photo['fname'] for photo in photos]
+
+if __name__ == '__main__':
+    if (len(sys.argv) != 2):
+        print("usage: " + sys.argv[0] + " <album name>")
+        sys.exit(1)
+
+    set_access_token()
+
+    # for album in get('/me/albums').json()['data']:
+    #     print(album['name'] + ": " + album['id'])
+
+    # privacy: EVERYONE, ALL_FRIENDS, FRIENDS_OF_FRIENDS, SELF
+    album_name = sys.argv[1]
+    album_id = post('/me/albums',
+                    data={'name': album_name,
+                          'privacy': json.dumps({'value': 'SELF'})}).json()['id']
+
+    dbconn = sqlite3.connect(DBFILE)
+    cursor = dbconn.cursor()
+
+    for photo in get_photos():
+        cursor.execute("SELECT title,comment FROM PhotoTable WHERE filename LIKE ?",
+                       ("%" + photo,))
+        [title, comment] = cursor.fetchone()
+        desc = title if title else comment
+        if desc is None:
+            desc = ''
+
+        print('%s: %s' % (photo, desc))
+
+        post('/' + album_id + '/photos',
+             data={'message': desc},
+             files={'source': open(photo, 'rb')})
