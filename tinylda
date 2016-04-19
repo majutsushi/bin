@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+
+import email
+import mailbox
+import sys
+
+if (sys.stdin.isatty()):
+    print("No message found on stdin")
+    sys.exit(1)
+
+msg = email.message_from_file(sys.stdin)
+
+inbox = mailbox.Maildir("~/Maildir")
+
+inbox.lock()
+inbox.add(msg)
+inbox.flush()
+inbox.unlock()
+inbox.close()
