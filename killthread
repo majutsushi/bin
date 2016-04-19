@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+
+import email
+import imaplib
+import keyring
+import signal
+import sys
+
+imaplib.Debug = 0
+imaplib.Commands["GETMETADATA"] = ("AUTH", "SELECTED")
+imaplib.Commands["SETMETADATA"] = ("AUTH", "SELECTED")
+
+MAXTHREADS = 100
+
+def sigint_handler(signal, frame):
+    sys.exit(1)
+
+class Imap(imaplib.IMAP4_SSL):
+    def getmetadata(self, mailbox, path):
+        name = "GETMETADATA"
+        typ, data = self._simple_command(name, mailbox, path)
+        return self._untagged_response(typ, data, "METADATA")
+
+    def setmetadata(self, mailbox, path, value):
+        name = "SETMETADATA"
+        return self._simple_command(name, mailbox,
+                                    "(" + path + " \"" + value + "\")")
+
+def get_mid():
+    if (sys.stdin.isatty()):
+        print("No message found on stdin")
+        sys.exit(1)
+
+    msg = email.message_from_file(sys.stdin)
+    if 'message-id' not in msg:
+        print("No message-id found in message")
+        sys.exit(1)
+
+    return msg['message-id']
+
+def imap_error(typ, data):
+    print("Command failed:")
+    print(typ, data)
+    m.logout()
+    sys.exit(1)
+
+def main():
+    mid = get_mid()
+
+    m = Imap("mail.majutsushi.net")
+    pw = keyring.get_password("majutsushi.net", "jan")
+    status, response = m.login("jan", pw)
+
+    try:
+        typ, data = m.getmetadata("INBOX", "/private/killedthreads")
+        if typ != "OK":
+            imap_error(typ, data)
+
+        if data[0] is None or len(data[0]) != 2:
+            killedlist = []
+        else:
+            value = data[0][1].decode("utf-8")
+            killedlist = value.split(",")
+
+        killedlist.append(mid)
+        if len(killedlist) > MAXTHREADS:
+            killedlist = killedlist[-MAXTHREADS:]
+
+        typ, data = m.setmetadata("INBOX", "/private/killedthreads",
+                                  ",".join(killedlist))
+        # typ, data = m._simple_command("SETMETADATA", "INBOX", "(/private/killedthreads NIL)")
+        if typ != "OK":
+            imap_error(typ, data)
+    except Exception as e:
+        raise e
+    finally:
+        m.logout()
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGINT, sigint_handler)
+    sys.exit(main())
