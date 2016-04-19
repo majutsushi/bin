@@ -15,6 +15,7 @@ update sshrc https://raw.githubusercontent.com/Russell91/sshrc/master/sshrc
 update ghi https://raw.githubusercontent.com/stephencelis/ghi/master/ghi
 update icdiff https://raw.githubusercontent.com/jeffkaufman/icdiff/master/icdiff
 update ts 'http://git.kitenet.net/?p=moreutils.git;a=blob_plain;f=ts;hb=HEAD'
+update diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/diff-so-fancy
 
 # echo -n "Updating hub completion..."
 # curl https://raw.github.com/defunkt/hub/master/etc/hub.zsh_completion --silent --location -o ~/.etc/zsh/zsh/zshrc.d/21_hub_completion
