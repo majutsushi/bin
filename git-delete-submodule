@@ -25,8 +25,5 @@ if [[ -z $(git config --file=.gitmodules submodule."$NAME".url) ]]; then
 fi
 
 git submodule deinit "$NAME"
-git rm --cached "$NAME"
-rm -rf "$submodule"
+git rm "$NAME"
 rm -rf .git/modules/"$NAME"
-git config --file=.gitmodules --remove-section submodule."$NAME"
-git add .gitmodules
