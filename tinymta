@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+#
+# Extremely simple MTA that accepts local mail by simulating a sendmail binary
+# and forwards it to a real mail server. Heavily inspired by ssmtp.
+#
+# Copy/symlink it to:
+# - /usr/sbin/sendmail
+# - /usr/lib/sendmail
+# - /usr/sbin/mailq
+# - /usr/sbin/newaliases
+#
+# Example config file (/etc/tinymta.conf or ~/.config/tinymta.conf):
+#
+# [DEFAULT]
+# recipient = foo@example.com
+# smarthost = mail.example.com
+# username = foo
+# password = password
+
+import argparse
+import configparser
+import email
+from email.utils import getaddresses
+import os
+import pwd
+from smtplib import SMTP_SSL
+import socket
+import sys
+import syslog
+
+
+unsupported_args = ["ba", "bd", "bs", "bt", "bv", "bz", "oo"]
+ignored_args = ["bi", "E", "h", "m", "M", "N", "oA", "oc", "od", "oD", "oe",
+                "oF", "of", "og", "oH", "oL", "oQ", "or", "oS", "os", "oT",
+                "ot", "ou", "R"]
+default_args = ["bm", "i", "n", "oi", "om"]
+
+# Unsupported arguments raise an error
+class UnsupportedAction(argparse.Action):
+    def __init__(self, option_strings, dest, nargs, **kwargs):
+        super(UnsupportedAction, self).__init__(option_strings, dest, nargs, **kwargs)
+    def __call__(self, parser, namespace, values, option_string=None):
+        print("%r option not supported" % option_string)
+        sys.exit(0)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="tinymta", add_help=False)
+    parser.add_argument("rcpts", nargs="*")
+    parser.add_argument("-F", dest="fullname")
+    parser.add_argument("-f", "-r", dest="fromaddr")
+    parser.add_argument("-t", action="store_true", dest="extract_rcpts", default=False)
+    parser.add_argument("-d", "--debug", action="store_true", default=False)
+
+    for arg in unsupported_args:
+        parser.add_argument("-" + arg, action=UnsupportedAction, nargs="*")
+    for arg in ignored_args + default_args:
+        parser.add_argument("-" + arg, nargs="*")
+
+    # simulated args
+    parser.add_argument("-bp", action="store_true", default=False)
+    parser.add_argument("-q", nargs="?", default=argparse.SUPPRESS)
+
+    return parser.parse_args()
+
+# Print message and exit successfully
+def exit(s):
+    print(s)
+    sys.exit(0)
+
+# Log error message to syslog and exit with an error code
+def die(s, msg=None):
+    syslog.syslog(syslog.LOG_WARNING, repr(s))
+
+    if msg is not None:
+        home = pwd.getpwuid(os.getuid()).pw_dir
+        path = os.path.join(home, "dead.letter")
+
+        syslog.syslog(syslog.LOG_WARNING, "Writing mail to " + path)
+
+        nl = "\n" if os.path.exists(path) else ""
+        with open(path, "a") as f:
+            f.write(nl)
+            f.write(msg.as_string())
+
+    if isinstance(s, Exception) and sys.stdout.isatty():
+        raise s
+    else:
+        print(str(s))
+        sys.exit(1)
+
+# Get recipients from the message and command line arguments, then map them to
+# remote recipients according to the config file(s)
+def get_recipients(args, msg, config):
+    rcpts = [a[1] for a in getaddresses(args.rcpts)]
+
+    if args.extract_rcpts:
+        for header in ["To", "Cc", "Bcc"]:
+            addresses = msg.get_all(header)
+            if addresses is None:
+                continue
+            rcpts += [a[1] for a in getaddresses(addresses)]
+    rcpts = set(rcpts)
+
+    result = []
+    for rcpt in rcpts:
+        user = rcpt.split("@")[0]
+        conf = config[user] if user in config else config["DEFAULT"]
+        result.append(conf["recipient"])
+
+    return set(result)
+
+# Main function
+def main(args):
+    name = os.path.basename(sys.argv[0])
+
+    # Simulate the "mailq" and "newaliases" commands
+    if name == "mailq" or args.bp or "q" in args:
+        exit("%s: Mail queue is empty" % name)
+    if name == "newaliases":
+        exit("%s: Aliases are not used in tinymta" % name)
+
+    if len(args.rcpts) == 0 and not args.extract_rcpts:
+        exit("%s: No recipients supplied - mail will not be sent")
+
+    # Parse mail passed in through stdin
+    msg = email.message_from_file(sys.stdin)
+
+    try:
+        syslog.openlog(ident="tinymta", facility=syslog.LOG_MAIL)
+
+        # Get user info from passwd file
+        pw = pwd.getpwuid(os.getuid())
+
+        # Read configuration, with user config overriding system-wide one
+        # TODO: Proper per-user/recipient configuration
+        config = configparser.ConfigParser()
+        config.read(["/etc/tinymta.conf",
+                     os.path.join(pw.pw_dir, ".config/tinymta.conf")])
+        defaultconf = config["DEFAULT"]
+
+        rcpts = get_recipients(args, msg, config)
+        if len(rcpts) == 0:
+            die("No recipients specified", msg)
+
+        # Construct a "From" header from explicit argument, existing header,
+        # or username
+        fromaddr = msg.get("From")
+        if args.fromaddr is not None:
+            fromaddr = args.fromaddr
+        if fromaddr is None:
+            fromaddr = pw.pw_name
+        if not "@" in fromaddr:
+            fromaddr += "@" + socket.getfqdn()
+        if "From" in msg:
+            msg.replace_header("From", fromaddr)
+        else:
+            msg.add_header("From", fromaddr)
+
+        # Send the mail
+        with SMTP_SSL(defaultconf["smarthost"]) as smtp:
+            if args.debug:
+                smtp.set_debuglevel(1)
+            smtp.login(defaultconf["username"], defaultconf["password"])
+            smtp.send_message(msg, from_addr=fromaddr, to_addrs=rcpts)
+
+        syslog.syslog(syslog.LOG_INFO,
+                      "Sent mail with subject %r to %s" % (msg.get("Subject"), str(rcpts)))
+    except Exception as e:
+        if sys.stdin.isatty():
+            raise e
+        else:
+            die(e, msg)
+
+if __name__ == "__main__":
+    sys.exit(main(parse_args()))
