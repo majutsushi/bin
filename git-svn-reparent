@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e
+
+INITIAL=$(git rev-list --max-parents=0 HEAD)
+NEWREMOTEEXT=-old
+
+if [[ -z "$1" ]]; then
+    echo "Usage: $0 <old svn url>"
+    exit 1
+fi
+
+git config svn-remote.svn${NEWREMOTEEXT}.url $1
+git config svn-remote.svn${NEWREMOTEEXT}.fetch :refs/remotes/git-svn${NEWREMOTEEXT}
+
+git svn fetch --svn-remote svn${NEWREMOTEEXT}
+
+OLDHEAD=$(git show-ref -s remotes/git-svn${NEWREMOTEEXT})
+
+git replace --graft $INITIAL $OLDHEAD
+
+git config --remove-section svn-remote.svn${NEWREMOTEEXT}
+rm .git/refs/remotes/git-svn${NEWREMOTEEXT}
+sed -i -e "/git-svn${NEWREMOTEEXT}/d" .git/info/refs
+sed -i -e "/git-svn${NEWREMOTEEXT}/d" .git/packed-refs
