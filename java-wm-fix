@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Fix X window manager name properties to work around java bugs with
+# non-reparenting window managers. This is a different solution from
+# the wmname utility provided by suckless, as it is NetWM compatible,
+# while wmname sets the value of _NET_SUPPORTING_WM_CHECK to root win.
+
+FAKE_WM_NAME="Sawfish"
+
+NET_WIN=$(xprop -root _NET_SUPPORTING_WM_CHECK | awk -F "# " '{print $2}')
+
+if [[ "$NET_WIN" == 0x* ]]; then
+    xprop -id "$NET_WIN" -remove _NET_WM_NAME
+    xprop -id "$NET_WIN" -f _NET_WM_NAME 8u -set _NET_WM_NAME "$FAKE_WM_NAME"
+else
+    # even if we're not net compatible, do java workaround
+    xprop -root -remove _NET_WM_NAME
+    xprop -root -f _NET_WM_NAME 8u -set _NET_WM_NAME "$FAKE_WM_NAME"
+fi
