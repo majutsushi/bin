@@ -9,7 +9,6 @@ update() {
 }
 
 update ack http://betterthangrep.com/ack-standalone
-update hub http://hub.github.com/standalone
 update terminal-colors http://zhar.net/projects/shell/terminal-colors
 update sshrc https://raw.githubusercontent.com/Russell91/sshrc/master/sshrc
 update ghi https://raw.githubusercontent.com/stephencelis/ghi/master/ghi
