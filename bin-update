@@ -3,8 +3,9 @@
 update() {
     local name="$1"
     local url="$2"
+    local location="${3:-$HOME/.bin/${name}}"
     echo -n "Updating ${name}..."
-    curl "$url" --silent --location -o ~/.bin/$name && chmod 0755 ~/.bin/$name
+    curl "$url" --silent --location -o "${location}" && chmod 0755 "${location}"
     echo " done."
 }
 
@@ -14,7 +15,11 @@ update sshrc https://raw.githubusercontent.com/Russell91/sshrc/master/sshrc
 update ghi https://raw.githubusercontent.com/stephencelis/ghi/master/ghi
 update icdiff https://raw.githubusercontent.com/jeffkaufman/icdiff/master/icdiff
 update ts 'http://git.kitenet.net/?p=moreutils.git;a=blob_plain;f=ts;hb=HEAD'
+
 update diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/diff-so-fancy
+mkdir libexec
+update diff-so-fancy.pl https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/libexec/diff-so-fancy.pl ~/.bin/libexec/diff-so-fancy.pl
+update diff-highlight https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/diff-highlight/diff-highlight
 
 # echo -n "Updating hub completion..."
 # curl https://raw.github.com/defunkt/hub/master/etc/hub.zsh_completion --silent --location -o ~/.etc/zsh/zsh/zshrc.d/21_hub_completion
