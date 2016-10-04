@@ -17,7 +17,7 @@ update icdiff https://raw.githubusercontent.com/jeffkaufman/icdiff/master/icdiff
 update ts 'http://git.kitenet.net/?p=moreutils.git;a=blob_plain;f=ts;hb=HEAD'
 
 update diff-so-fancy https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/diff-so-fancy
-mkdir libexec
+mkdir -p libexec
 update diff-so-fancy.pl https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/libexec/diff-so-fancy.pl ~/.bin/libexec/diff-so-fancy.pl
 update diff-highlight https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/diff-highlight/diff-highlight
 
