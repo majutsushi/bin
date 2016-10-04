@@ -86,17 +86,18 @@ init_term_cmds() {
 
 heading() {
     local line="$*"
-    echo "$bold$red${line:2}$reset"
+    echo
+    echo "  $bold$red${line:2}$reset"
 }
 
 quotation() {
     local line="$*"
-    echo "$under${line:2}$reset"
+    echo "  ${line:2}$reset"
 }
 
 list_item() {
     local line="$*"
-    echo "$line$reset"
+    echo "  $line"
 }
 
 code() {
@@ -104,11 +105,10 @@ code() {
     # I'm sure there's a better way to strip the first and last characters.
     line="${line:1}"
     line="${line%\`}"
-    # convert {{variable}} to italics
-    line=${line//\{\{/$italic}
-    line=${line//\}\}/$eitalic}
+    line=${line//\{\{/$green}
+    line=${line//\}\}/$red}
 
-    echo "$bold$line$reset"
+    echo "    $bold$red$line$reset"
 }
 
 text() {
