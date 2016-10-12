@@ -1,0 +1,77 @@
+#!/bin/bash
+
+set -eEu -o pipefail
+IFS=$'\n\t'
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+if ! command -v jq &>/dev/null; then
+    echo "'jq' has to be installed"
+    exit 1
+fi
+
+if ! command -v aunpack &>/dev/null; then
+    echo "'aunpack' has to be installed"
+    exit 1
+fi
+
+
+get_fname_hub() {
+    local archive="$1"
+    echo "${archive%%.tgz}"
+}
+
+get_fname_fzf() {
+    local archive="$1"
+    echo "${archive%%.tgz}"
+}
+
+
+get_url() {
+    local repo="$1"
+    local selector="$2"
+
+    curl -s https://api.github.com/repos/${1}/releases/latest | \
+        jq --raw-output ".assets[] | select($selector) | .browser_download_url"
+}
+
+update() {
+    local repo="$1"
+    local selector="$2"
+    local name="$3"
+
+    echo "Updating $name"
+
+    local url="$(get_url ${repo} "$selector")"
+    local file="${url##*/}"
+    fname="$(get_fname_${name} "${file}")"
+
+    if [[ -e "${fname}" ]]; then
+        echo "$name is up to date"
+        return
+    fi
+
+    curl -L -O "$url"
+    aunpack --quiet "$file"
+    rm "$file"
+
+    if [[ -e "${name}" ]]; then
+        mv "$(readlink -f "${name}")" .archive
+        rm -f "$name"
+    fi
+    ln -s "$fname" "$name"
+}
+
+OLDPWD=$PWD
+
+mkdir -p ~/apps
+cd ~/apps
+mkdir -p .archive
+
+
+update github/hub '.label | test("Linux 64-bit")' hub
+update junegunn/fzf-bin '.name | test("linux_amd64")' fzf
+
+
+cd $OLDPWD
