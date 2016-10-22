@@ -37,9 +37,20 @@ import webbrowser
 
 from wand.image import Image
 
+# import logging
+# import http.client
+
+# http.client.HTTPConnection.debuglevel = 1
+
+# logging.basicConfig()
+# logging.getLogger().setLevel(logging.DEBUG)
+# requests_log = logging.getLogger("requests.packages.urllib3")
+# requests_log.setLevel(logging.DEBUG)
+# requests_log.propagate = True
+
 APP_ID = keyring.get_password('facebook', 'appid')
 APP_SECRET = keyring.get_password('facebook', 'appsecret')
-FB_URL = 'https://graph.facebook.com'
+FB_URL = 'https://graph.facebook.com/v2.7'
 REDIRECT_URI = 'http://127.0.0.1:8080/'
 ACCESS_TOKEN = None
 DBFILE = os.environ['HOME'] + '/.local/share/shotwell/data/photo.db'
@@ -87,7 +98,7 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                                                'redirect_uri': REDIRECT_URI,
                                                'client_secret': APP_SECRET,
                                                'code': code})
-        ACCESS_TOKEN = urllib.parse.parse_qs(response.text)['access_token'][0]
+        ACCESS_TOKEN = json.loads(response.text)['access_token']
         keyring.set_password('facebook', 'accesstoken', ACCESS_TOKEN)
         self.out("You have successfully logged in to facebook. "
                  "You can close this window now.")
