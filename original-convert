@@ -17,7 +17,6 @@ if len(sys.argv) != 2:
 
 for dir in ['comments', 'hq', 'lq', 'thumbs', 'zip']:
     os.mkdir(dir)
-os.chmod('comments', 0777)
 
 with open('.htaccess', 'w') as f:
     f.write("""
