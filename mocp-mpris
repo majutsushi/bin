@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+#
+# References:
+# https://github.com/mopidy/mopidy-mpris/blob/develop/mopidy_mpris/objects.py
+# https://dbus.freedesktop.org/doc/dbus-python/doc/tutorial.html
+# https://gist.github.com/caspian311/4676061
+
+import dbus
+from dbus.mainloop.glib import DBusGMainLoop
+import dbus.service
+from gi.repository import GLib
+import re
+import signal
+from subprocess import call, check_output, STDOUT, CalledProcessError
+import sys
+
+BUS_NAME = 'org.mpris.MediaPlayer2.mocp'
+OBJECT_PATH = '/org/mpris/MediaPlayer2'
+ROOT_IFACE = 'org.mpris.MediaPlayer2'
+PLAYER_IFACE = 'org.mpris.MediaPlayer2.Player'
+PLAYLISTS_IFACE = 'org.mpris.MediaPlayer2.Playlists'
+
+class Mocp(dbus.service.Object):
+    def __init__(self):
+        bus_name = dbus.service.BusName(BUS_NAME, dbus.SessionBus())
+        dbus.service.Object.__init__(self, bus_name, OBJECT_PATH)
+        self.loop = GLib.MainLoop()
+
+    def run(self):
+        self.loop.run()
+
+    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
+                         in_signature='ss', out_signature='v')
+    def Get(self, interface, prop):
+        if prop == 'PlaybackStatus':
+            state = get_mocp_state()
+            if state == 'UNKNOWN' or state == 'STOP':
+                return 'Stopped'
+            if state == 'PLAY':
+                return 'Playing'
+            elif state == 'PAUSE':
+                return 'Paused'
+            else:
+                return 'Stopped'
+
+        return 'Not implemented'
+
+    @dbus.service.method(dbus_interface=ROOT_IFACE)
+    def Quit(self):
+        sys.exit(0)
+
+    @dbus.service.method(dbus_interface=PLAYER_IFACE)
+    def PlayPause(self):
+        state = get_mocp_state()
+
+        if state == 'UNKNOWN' or state == 'STOP':
+            return
+
+        mocp_cmd(['--toggle-pause'])
+
+def mocp_cmd(args):
+    return check_output(['mocp'] + args, stderr=STDOUT).decode('utf-8')
+
+def get_mocp_state():
+    try:
+        out = mocp_cmd(['-i'])
+    except CalledProcessError as e:
+        return 'UNKNOWN'
+    for line in out.splitlines():
+        match = re.match('^State: (.*)', line)
+        if match:
+            return match.group(1)
+
+    # STOP, PLAY, PAUSE
+    return 'UNKNOWN'
+
+def main():
+    DBusGMainLoop(set_as_default=True)
+
+    Mocp().run()
+
+if __name__ == '__main__':
+    sys.exit(main())
