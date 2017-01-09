@@ -210,7 +210,8 @@ if __name__ == '__main__':
     update_gh_site(scrver, scrcommfile, reldate)
 
     print 'Pushing changes...',
-    system('git push')
+    system('git push origin master')
+    system('git push origin gh-pages')
     system('git push --tags')
     print 'done.'
 
