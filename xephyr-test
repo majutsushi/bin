@@ -3,7 +3,7 @@
 Xephyr -ac -br -noreset -screen 800x600 :1 &
 declare -r XEPHYR_PID=$!
 
-trap 'kill $XEPHYR_PID' EXIT
+# trap 'kill $XEPHYR_PID' EXIT
 
 sleep 1
 DISPLAY=:1
@@ -14,6 +14,7 @@ xset +fp ~/.local/share/fonts
 
 if (( $# > 0 )); then
     command "$@"
+    kill $XEPHYR_PID
+else
+    wait $XEPHYR_PID
 fi
-
-wait $XEPHYR_PID
