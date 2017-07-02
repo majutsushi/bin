@@ -31,11 +31,10 @@ import sys
 import syslog
 
 
-unsupported_args = ["ba", "bd", "bs", "bt", "bv", "bz", "oo"]
-ignored_args = ["bi", "E", "h", "m", "M", "N", "oA", "oc", "od", "oD", "oe",
-                "oF", "of", "og", "oH", "oL", "oQ", "or", "oS", "os", "oT",
-                "ot", "ou", "R"]
-default_args = ["bm", "i", "n", "oi", "om"]
+unsupported_args = ["ba", "bd", "bs", "bt", "bv", "bz"]
+ignored_args = [("B", 1), ("bi", 0), ("bm", 0), ("E", 0), ("h", 1),
+                ("i", 0), ("m", 0), ("M", 1), ("n", 0), ("N", 1),
+                ("o", 1), ("R", 1)]
 
 # Unsupported arguments raise an error
 class UnsupportedAction(argparse.Action):
@@ -44,6 +43,11 @@ class UnsupportedAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         print("%r option not supported" % option_string)
         sys.exit(0)
+class IgnoredAction(argparse.Action):
+    def __init__(self, option_strings, dest, nargs, **kwargs):
+        super(IgnoredAction, self).__init__(option_strings, dest, nargs, **kwargs)
+    def __call__(self, parser, namespace, values, option_string=None):
+        pass
 
 def parse_args():
     parser = argparse.ArgumentParser(description="tinymta", add_help=False)
@@ -54,9 +58,9 @@ def parse_args():
     parser.add_argument("-d", "--debug", action="store_true", default=False)
 
     for arg in unsupported_args:
-        parser.add_argument("-" + arg, action=UnsupportedAction, nargs="*")
-    for arg in ignored_args + default_args:
-        parser.add_argument("-" + arg, nargs="*")
+        parser.add_argument("-" + arg, action=UnsupportedAction, nargs=0)
+    for [arg, nargs] in ignored_args:
+        parser.add_argument("-" + arg, action=IgnoredAction, nargs=nargs)
 
     # simulated args
     parser.add_argument("-bp", action="store_true", default=False)
@@ -122,7 +126,7 @@ def main(args):
         exit("%s: Aliases are not used in tinymta" % name)
 
     if len(args.rcpts) == 0 and not args.extract_rcpts:
-        exit("%s: No recipients supplied - mail will not be sent")
+        exit("%s: No recipients supplied - mail will not be sent" % name)
 
     # Parse mail passed in through stdin
     msg = email.message_from_file(sys.stdin)
