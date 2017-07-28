@@ -1,6 +1,12 @@
 #!/bin/bash
 
+export GTK_DATA_PREFIX=""
 export GTK2_RC_FILES=$HOME/.etc/gtk/gtkfix.gtkrc
+
+# GTK3:
+# https://developer.gnome.org/gtk3/stable/gtk-running.html
+# GTK_THEME=Adwaita:dark gedit
+# GTK_THEME=Adwaita:light gedit
 
 if [ -L "$0" ]; then
     cmd="$(basename "$0")"
