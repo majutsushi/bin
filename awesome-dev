@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -eEu -o pipefail
+IFS=$'\n\t'
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+AWESOME_SOURCE_DIR="$HOME/src/awesome"
+AWESOME_BUILD_DIR="$AWESOME_SOURCE_DIR/build"
+# export LUA_PATH="$(lua -e 'print(package.path)');$AWESOME_BUILD_DIR/lib/?.lua;$AWESOME_BUILD_DIR/lib/?/init.lua"
+export AWESOME_THEMES_PATH="$AWESOME_SOURCE_DIR/themes"
+export AWESOME_ICON_PATH="$AWESOME_SOURCE_DIR/icons"
+
+exec xephyr-test "$AWESOME_BUILD_DIR/awesome" --search "$AWESOME_BUILD_DIR/lib" "$@"
