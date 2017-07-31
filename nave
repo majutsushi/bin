@@ -102,7 +102,7 @@ main () {
   # For zsh compatibility, we name this file ".zshenv" instead of
   # the more reasonable "naverc" name.
   # Important! Update this number any time the init content is changed.
-  local rcversion="#3"
+  local rcversion="#4"
   local rcfile="$NAVE_DIR/.zshenv"
   if ! [ -f "$rcfile" ] \
       || [ "$(head -n1 "$rcfile")" != "$rcversion" ]; then
@@ -110,32 +110,8 @@ main () {
     cat > "$rcfile" <<RC
 $rcversion
 [ "\$NAVE_DEBUG" != "" ] && set -x || true
-if [ "\$BASH" != "" ]; then
-  if [ "\$NAVE_LOGIN" != "" ]; then
-    [ -f ~/.bash_profile ] && . ~/.bash_profile || true
-    [ -f ~/.bash_login ] && .  ~/.bash_login || true
-    [ -f ~/.profile ] && . ~/.profile || true
-  else
-    [ -f ~/.bashrc ] && . ~/.bashrc || true
-  fi
-else
-  [ -f ~/.zshenv ] && . ~/.zshenv || true
-  export DISABLE_AUTO_UPDATE=true
-  if [ "\$NAVE_LOGIN" != "" ]; then
-    [ -f ~/.zprofile ] && . ~/.zprofile || true
-    [ -f ~/.zshrc ] && . ~/.zshrc || true
-    [ -f ~/.zlogin ] && . ~/.zlogin || true
-  else
-    [ -f ~/.zshrc ] && . ~/.zshrc || true
-  fi
-fi
-unset ZDOTDIR
 export PATH=\$NAVEPATH:\$PATH
 [ -f ~/.naverc ] && . ~/.naverc || true
-RC
-
-    cat > "$NAVE_DIR/.zlogout" <<RC
-[ -f ~/.zlogout ] && . ~/.zlogout || true
 RC
 
   fi
@@ -479,7 +455,6 @@ nave_exit () {
   unset NODE_PATH
   unset NAVE_LOGIN
   unset NAVE_DIR
-  unset ZDOTDIR
   unset npm_config_binroot
   unset npm_config_root
   unset npm_config_manroot
@@ -710,20 +685,16 @@ nave_run () {
     isLogin=""
     # source the nave env file, then run the command.
     args=("-c" ". $(enquote_all $NAVE_DIR/.zshenv); $(enquote_all "$@")")
-  elif [ "$shell" == "zsh" ]; then
+  elif [ "$shell" == "bash" ]; then
     isLogin="1"
-    # no need to set rcfile, since ZDOTDIR is set.
-    args=()
-  elif [ "$shell" == "fish" ]; then
+    # bash, use --rcfile argument
+    args=("--rcfile" "$NAVE_DIR/.zshenv")
+  else
     isLogin="1"
     # use bash so we can source the rcfile we've prepared but then tell bash to
     # run 'fish' so we get the user's preferred shell
     runShell="bash"
-    args=("-c" ". $NAVE_DIR/.zshenv && $SHELL")
-  else
-    isLogin="1"
-    # bash, use --rcfile argument
-    args=("--rcfile" "$NAVE_DIR/.zshenv")
+    args=("-c" ". $NAVE_DIR/.zshenv && exec $SHELL")
   fi
 
   local nave="$version"
@@ -750,7 +721,6 @@ nave_run () {
   NODE_PATH="$lib" \
   NAVE_LOGIN="$isLogin" \
   NAVE_DIR="$NAVE_DIR" \
-  ZDOTDIR="$NAVE_DIR" \
     "${args[@]}"
 
   exit_code=$?
