@@ -55,6 +55,10 @@ fi
 
 while true; do
     active_win_id=$(xprop -root _NET_ACTIVE_WINDOW)
+    if [[ -z "$active_win_id" ]]; then
+        sleep $delay
+        continue
+    fi
     active_win_id=${active_win_id:40:9}
     active_win_class=($(get_class))
 
