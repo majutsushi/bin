@@ -1,7 +1,6 @@
 #!/bin/bash
 # Reference: https://github.com/neovim/neovim/issues/6435
 
-set -x
 set -eEu -o pipefail
 IFS=$'\n\t'
 
