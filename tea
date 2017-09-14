@@ -1,0 +1,5 @@
+#!/bin/bash
+
+TIME=${1:-90s}
+sleep $TIME
+exec zenity --info --title="Tea is ready" --text="Tea is ready since $(date +%H:%M:%S)"
