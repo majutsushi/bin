@@ -7,10 +7,11 @@ Author: Jeff Kaufman, derived from difflib.HtmlDiff
 License: This code is usable under the same open terms as the rest of
          python.  See: http://www.python.org/psf/license/
 
-Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006 Python Software Foundation; All Rights Reserved
+Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006 Python Software Foundation;
+All Rights Reserved
 
-Based on Python's difflib.HtmlDiff, with changes to provide console output instead of
-html output.  """
+Based on Python's difflib.HtmlDiff,
+with changes to provide console output instead of html output.  """
 
 import os
 import sys
@@ -22,7 +23,7 @@ import filecmp
 import unicodedata
 import codecs
 
-__version__ = "1.8.2"
+__version__ = "1.9.0"
 
 color_codes = {
     "red":     '\033[0;31m',
@@ -39,6 +40,7 @@ color_codes = {
     "magenta_bold": '\033[1;35m',
     "cyan_bold":    '\033[1;36m',
 }
+
 
 class ConsoleDiff(object):
     """Console colored side by side comparison with change highlights.
@@ -70,7 +72,8 @@ class ConsoleDiff(object):
                  line_numbers=False,
                  show_all_spaces=False,
                  highlight=False,
-                 no_bold=False):
+                 no_bold=False,
+                 strip_trailing_cr=False):
         """ConsoleDiff instance initializer
 
         Arguments:
@@ -88,6 +91,7 @@ class ConsoleDiff(object):
         self.show_all_spaces = show_all_spaces
         self.highlight = highlight
         self.no_bold = no_bold
+        self.strip_trailing_cr = strip_trailing_cr
 
         if wrapcolumn is None:
             if not line_numbers:
@@ -114,7 +118,7 @@ class ConsoleDiff(object):
             line = line.replace(' ', '\0')
             # expand tabs into spaces
             line = line.expandtabs(self._tabsize)
-            # relace spaces from expanded tabs back into tab characters
+            # replace spaces from expanded tabs back into tab characters
             # (we'll replace them with markup after we do differencing)
             line = line.replace(' ', '\t')
             return line.replace('\0', ' ').rstrip('\n')
@@ -122,11 +126,24 @@ class ConsoleDiff(object):
         tolines = [expand_tabs(line) for line in tolines]
         return fromlines, tolines
 
+    def _strip_trailing_cr(self, lines):
+        """ Remove windows return carriage
+        """
+        lines = [line.rstrip('\r') for line in lines]
+        return lines
+
+    def _all_cr_nl(self, lines):
+        """ Whether a file is entirely \r\n line endings
+        """
+        return all(line.endswith('\r') for line in lines)
+
     def _display_len(self, s):
-        # Handle wide characters like chinese.
+        # Handle wide characters like Chinese.
         def width(c):
             if ((isinstance(c, type(u"")) and
                  unicodedata.east_asian_width(c) == 'W')):
+                return 2
+            elif c == '\r':
                 return 2
             return 1
 
@@ -221,7 +238,6 @@ class ConsoleDiff(object):
         into a single line of text with console markup.
         """
 
-        fromlist, tolist, flaglist = [], [], []
         # pull from/to data and flags from mdiff style iterator
         for fromdata, todata, flag in diffs:
             if (fromdata, todata, flag) == (None, None, None):
@@ -302,6 +318,11 @@ class ConsoleDiff(object):
         # markup
         fromlines, tolines = self._tab_newline_replace(fromlines, tolines)
 
+        if self.strip_trailing_cr or (
+                self._all_cr_nl(fromlines) and self._all_cr_nl(tolines)):
+            fromlines = self._strip_trailing_cr(fromlines)
+            tolines = self._strip_trailing_cr(tolines)
+
         # create diffs iterator which generates side by side from/to data
         diffs = difflib._mdiff(fromlines, tolines, context_lines,
                                linejunk=self._linejunk,
@@ -358,7 +379,8 @@ class ConsoleDiff(object):
                          '\0-': C_SUB,
                          '\0^': C_CHG,
                          '\1': C_NONE,
-                         '\t': ' '}, s)
+                         '\t': ' ',
+                         '\r': '\\r'}, s)
 
         if self.highlight:
             return s
@@ -407,10 +429,12 @@ class ConsoleDiff(object):
 def simple_colorize(s, chosen_color):
     return "%s%s%s" % (color_codes[chosen_color], s, color_codes["none"])
 
+
 def replace_all(replacements, string):
     for search, replace in replacements.items():
         string = string.replace(search, replace)
     return string
+
 
 class MultipleOption(Option):
     ACTIONS = Option.ACTIONS + ("extend",)
@@ -425,7 +449,7 @@ class MultipleOption(Option):
             Option.take_action(self, action, dest, opt, value, values, parser)
 
 
-def start():
+def create_option_parser():
     # If you change any of these, also update README.
     parser = OptionParser(usage="usage: %prog [options] left_file right_file",
                           version="icdiff version %s" % __version__,
@@ -455,14 +479,14 @@ def start():
                       help="generate output with line numbers")
     parser.add_option("--no-bold", default=False,
                       action="store_true",
-                      help="use non-bold colors; recommended for with solarized")
+                      help="use non-bold colors; recommended for solarized")
     parser.add_option("--no-headers", default=False,
                       action="store_true",
                       help="don't label the left and right sides "
                       "with their file names")
     parser.add_option("--output-encoding", default="utf-8",
                       help="specify the output encoding; defaults to utf8")
-    parser.add_option("--recursive", default=False,
+    parser.add_option("-r", "--recursive", default=False,
                       action="store_true",
                       help="recursively compare subdirectories")
     parser.add_option("--show-all-spaces", default=False,
@@ -471,7 +495,7 @@ def start():
                       "that which is not needed for drawing the eye to "
                       "changes.  Slow, ugly, displays all changes")
     parser.add_option("--tabsize", default=8,
-                       help="tab stop spacing")
+                      help="tab stop spacing")
     parser.add_option("-u", "--patch", default=True,
                       action="store_true",
                       help="generate patch. This is always true, "
@@ -484,15 +508,14 @@ def start():
                       action="store_true",
                       help="show the whole file instead of just changed "
                       "lines and context")
+    parser.add_option("--strip-trailing-cr", default=False,
+                      action="store_true",
+                      help="strip any trailing carriage return at the end of "
+                      "an input line")
+    return parser
 
-    (options, args) = parser.parse_args()
 
-    if len(args) != 2:
-        parser.print_help()
-        sys.exit()
-
-    a, b = args
-
+def set_cols_option(options):
     if not options.cols:
         def ioctl_GWINSZ(fd):
             try:
@@ -509,8 +532,22 @@ def start():
             options.cols = cr[1]
         else:
             options.cols = 80
+    return options
 
-    diff(options, a, b)
+
+def validate_has_two_arguments(parser, args):
+    if len(args) != 2:
+        parser.print_help()
+        sys.exit()
+
+
+def start():
+    parser = create_option_parser()
+    options, args = parser.parse_args()
+    validate_has_two_arguments(parser, args)
+    options = set_cols_option(options)
+    diff(options, *args)
+
 
 def codec_print(s, options):
     s = "%s\n" % s
@@ -524,11 +561,22 @@ def diff(options, a, b):
     def print_meta(s):
         codec_print(simple_colorize(s, "magenta"), options)
 
-    if os.path.isfile(a) and os.path.isfile(b):
-        if not filecmp.cmp(a, b, shallow=False):
-            diff_files(options, a, b)
+    # Don't use os.path.isfile; it returns False for file-like entities like
+    # bash's process substitution (/dev/fd/N).
+    is_a_file = not os.path.isdir(a)
+    is_b_file = not os.path.isdir(b)
 
-    elif os.path.isdir(a) and os.path.isdir(b):
+    if is_a_file and is_b_file:
+        try:
+            if not filecmp.cmp(a, b, shallow=False):
+                diff_files(options, a, b)
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                print_meta("error: file '%s' was not found" % e.filename)
+            else:
+                raise(e)
+
+    elif not is_a_file and not is_b_file:
         a_contents = set(os.listdir(a))
         b_contents = set(os.listdir(b))
 
@@ -541,11 +589,12 @@ def diff(options, a, b):
                 diff(options,
                      os.path.join(a, child),
                      os.path.join(b, child))
-    elif os.path.isdir(a) and os.path.isfile(b):
+    elif not is_a_file and is_b_file:
         print_meta("File %s is a directory while %s is a file" % (a, b))
 
-    elif os.path.isfile(a) and os.path.isdir(b):
+    elif is_a_file and not is_b_file:
         print_meta("File %s is a file while %s is a directory" % (a, b))
+
 
 def read_file(fname, options):
     try:
@@ -591,13 +640,15 @@ def diff_files(options, a, b):
                      highlight=options.highlight,
                      no_bold=options.no_bold,
                      line_numbers=options.line_numbers,
-                     tabsize=int(options.tabsize))
+                     tabsize=int(options.tabsize),
+                     strip_trailing_cr=options.strip_trailing_cr)
     for line in cd.make_table(
             lines_a, lines_b, headers[0], headers[1],
             context=(not options.whole_file),
             numlines=int(options.unified)):
         codec_print(line, options)
         sys.stdout.flush()
+
 
 if __name__ == "__main__":
     try:
