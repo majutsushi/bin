@@ -4,7 +4,7 @@
 
 import argparse
 import signal
-from subprocess import run, check_output
+from subprocess import run, check_output, CalledProcessError
 import sys
 import traceback
 
@@ -42,7 +42,11 @@ def main(args):
 
     cmd = ['git', 'merge-base', '--octopus', '--all'] + revs
     log.debug(cmd)
-    merge_bases = check_output(cmd).decode('utf-8').splitlines()
+    try:
+        merge_bases = check_output(cmd).decode('utf-8').splitlines()
+    except CalledProcessError:
+        print("Failed to run command '%s'" % ' '.join(cmd))
+        sys.exit(1)
 
     exclusions = [base + '^' for base in merge_bases]
     log.debug(exclusions)
