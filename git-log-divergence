@@ -25,6 +25,9 @@ def parse_args():
     parser.add_argument('rev', nargs='+', help='Revisions to log')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help='increase output verbosity')
+    parser.add_argument('-p', '--print-args',
+                        action='store_true', default=False,
+                        help="print revision args instead of running git log")
     return parser.parse_args()
 
 def main(args):
@@ -42,10 +45,15 @@ def main(args):
     exclusions = [ base + '^' for base in merge_bases ]
     log.debug(exclusions)
 
-    cmd = ['git', 'log', '--oneline', '--decorate', '--graph'] + revs \
-            + ['--not'] + exclusions
-    log.debug(cmd)
-    run(cmd)
+    rev_args = revs + ['--not'] + exclusions
+
+    if args.print_args:
+        print(" ".join(rev_args))
+        sys.exit(0)
+
+    log_cmd = ['git', 'log', '--oneline', '--decorate', '--graph'] + rev_args
+    log.debug(log_cmd)
+    run(log_cmd)
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, sigint_handler)
