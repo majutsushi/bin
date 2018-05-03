@@ -55,14 +55,18 @@ def main(args):
 
     rev_args = revs + ['--not'] + exclusions
 
+    extra_args = ['--topo-order']
+
     if args.simplify:
-        rev_args.append('--simplify-by-decoration')
+        extra_args.append('--simplify-by-decoration')
+        extra_args.append('--boundary')
 
     if args.print_args:
-        print(" ".join(rev_args))
+        print(" ".join(extra_args + rev_args))
         sys.exit(0)
 
-    log_cmd = ['git', 'log', '--oneline', '--decorate', '--graph'] + rev_args
+    log_cmd = ['git', 'log', '--oneline', '--decorate', '--graph']
+    log_cmd += extra_args + rev_args
     log.debug(log_cmd)
     run(log_cmd)
 
