@@ -27,6 +27,8 @@ def parse_args():
     parser.add_argument('rev', nargs='+', help='Revisions to log')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help='increase output verbosity')
+    parser.add_argument('-s', '--simplify', action='store_true', default=False,
+                        help="only show commits with symbolic refs")
     parser.add_argument('-p', '--print-args',
                         action='store_true', default=False,
                         help="print revision args instead of running git log")
@@ -52,6 +54,9 @@ def main(args):
     log.debug(exclusions)
 
     rev_args = revs + ['--not'] + exclusions
+
+    if args.simplify:
+        rev_args.append('--simplify-by-decoration')
 
     if args.print_args:
         print(" ".join(rev_args))
