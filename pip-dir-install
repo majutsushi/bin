@@ -1,0 +1,47 @@
+#!/bin/bash
+# Author: Jan Larres <jan@majutsushi.net>
+
+set -eEu -o pipefail
+IFS=$'\n\t'
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+if (( $# != 3 )); then
+    echo "usage: $0 <pipbin> <package> <installdir>"
+    echo "example: $0 pip3 pylint ~/apps/pylint3"
+    exit 1
+fi
+
+PIP="$1"
+PACKAGE="$2"
+DIR="$(readlink -f "$3")"
+
+WRAPPERDIR="$HOME/bin"
+
+if [[ -e "$DIR" ]]; then
+    echo "$DIR already exists" >&2
+    exit 1
+fi
+
+PYTHONUSERBASE="$DIR" "$PIP" install --user --ignore-installed "$PACKAGE"
+
+for bin in $DIR/bin/*; do
+    binbase="$(basename "$bin")"
+    wrapperpath="$WRAPPERDIR/$binbase"
+    if [[ -e "$wrapperpath" ]]; then
+        echo "$wrapperpath already exists; skipping" >&2
+        continue
+    fi
+    if command -v "$binbase" &>/dev/null; then
+        echo "$binbase already exists in PATH; skipping" >&2
+        continue
+    fi
+    echo "Creating wrapper script $wrapperpath"
+    cat > "$wrapperpath" << EOF
+#!/bin/bash
+DIR="$DIR"
+PYTHONUSERBASE="\$DIR" "\$DIR/bin/$binbase" "\$@"
+EOF
+    chmod u+x "$wrapperpath"
+done
