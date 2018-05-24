@@ -155,12 +155,15 @@ def main(args):
             fromaddr = args.fromaddr
         if fromaddr is None:
             fromaddr = pw.pw_name
-        if not "@" in fromaddr:
+        if "@" not in fromaddr:
             fromaddr += "@" + socket.getfqdn()
         if "From" in msg:
             msg.replace_header("From", fromaddr)
         else:
             msg.add_header("From", fromaddr)
+
+        if msg.get("Date") is None:
+            msg.add_header("Date", email.utils.formatdate(localtime=True))
 
         # Send the mail
         with SMTP_SSL(defaultconf["smarthost"]) as smtp:
