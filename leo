@@ -56,6 +56,8 @@ ritm = ''
 smul = ''
 rmul = ''
 
+colwidth=39
+
 if sys.stdout.isatty():
     curses.setupterm()
     sgr0 = curses.tigetstr('sgr0')
@@ -65,6 +67,7 @@ if sys.stdout.isatty():
     ritm = curses.tigetstr('ritm')
     smul = curses.tigetstr('smul')
     rmul = curses.tigetstr('rmul')
+    colwidth = min(curses.tigetnum('cols') / 2, 60)
 
 if len(sys.argv) == 1:
     print 'Usage: leo <words>'
@@ -109,7 +112,7 @@ for section in sections:
             l = re.findall(re.escape(escseq), wordl)
             esclen += len(l) * len(escseq)
 
-        print u'{0: <{width}} {1}'.format(wordl, wordr, width=39 + esclen)
+        print u'{0: <{width}} {1}'.format(wordl, wordr, width=colwidth + esclen)
 
 similar = results.find('similar')
 if similar is not None:
