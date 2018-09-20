@@ -33,6 +33,8 @@ def process(s):
     s = re.sub(r'&#160;', '', s)
     s = re.sub(r'&nbsp;', '', s)
     s = re.sub(r'\*\)$', '', s)
+    s = re.sub(r'</?flecttabref>', '', s)
+    s = re.sub(r'</?domain>', '', s)
     return s
 
 def getrepr(node):
