@@ -43,7 +43,7 @@ def get_app_info(project: str, name_filter: str) -> AppInfo:
     return info[0]
 
 
-def dl_file(url: str, filename: Optional[str] = None) -> None:
+def dl_file(url: str, filename: Optional[str] = None) -> str:
     log.debug("Downloading %s", url)
     r = requests.get(url)
     r.raise_for_status()
@@ -60,6 +60,8 @@ def dl_file(url: str, filename: Optional[str] = None) -> None:
             _, filename = url.rsplit('/', maxsplit=1)
     with open(filename, 'wb') as f:
         f.write(r.content)
+
+    return filename
 
 
 def update_release(project: str, name_filter: str, is_archive: bool,
@@ -95,6 +97,12 @@ def update_release(project: str, name_filter: str, is_archive: bool,
     print("Installed binary '%s'" % bin_name)
 
 
+def update_script(url: str, filename: Optional[str] = None) -> None:
+    filename = dl_file(url, filename)
+    os.chmod(filename, 0o755)
+    print("Installed script '%s'" % filename)
+
+
 def main() -> int:
     if args.verbose:
         log.setLevel(logging.DEBUG)
@@ -110,6 +118,17 @@ def main() -> int:
                    is_archive=True, bin_name='fzf', path='fzf')
     update_release(project='Netflix-Skunkworks/go-jira', name_filter='linux-amd64',
                    is_archive=False, bin_name='jira', path=None)
+
+    # pylint: disable=line-too-long
+    update_script('https://raw.githubusercontent.com/eikenb/terminal-colors/master/terminal-colors')
+    update_script('https://raw.githubusercontent.com/Russell91/sshrc/master/sshrc')
+    update_script('https://raw.githubusercontent.com/stephencelis/ghi/master/ghi')
+    update_script('https://raw.githubusercontent.com/jeffkaufman/icdiff/master/icdiff')
+    update_script('https://git.kitenet.net/index.cgi/moreutils.git/plain/ts')
+    update_script('https://raw.githubusercontent.com/grawity/code/master/term/xterm-color-chooser')
+    update_script('https://raw.githubusercontent.com/holman/spark/master/spark')
+    update_script('https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy')
+    # pylint: enable=line-too-long
 
     os.chdir(oldpwd)
 
