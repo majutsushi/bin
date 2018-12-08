@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -eEu -o pipefail
+IFS=$'\n\t'
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+
+if (( "${#@}" < 1 )); then
+    echo "usage: $0 <command>"
+    exit 1
+fi
+
+TAG="$(basename "$1")"
+
+exec "$@" 1> >(logger -e -t "$TAG" -p user.info &>/dev/null) \
+          2> >(logger -e -t "$TAG" -p user.warning &>/dev/null)
