@@ -4,77 +4,80 @@
 
 import argparse
 from collections import namedtuple
-import fileinput
+from importlib.util import find_spec
+import logging
 import os
-import requests
 import shutil
-import signal
-import stat
 from subprocess import check_call, check_output, STDOUT
 import sys
 import tempfile
+from typing import Optional
 
-import logging
+import requests
+
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
 
-try:
-    import better_exceptions
-except Exception:
-    pass
+
+if find_spec('better_exceptions'):
+    import better_exceptions  # pylint: disable=unused-import
 
 GH_URL = 'https://api.github.com/repos/%s/releases/latest'
 
 AppInfo = namedtuple('AppInfo', ['name', 'dl_url'])
 
-def sigint_handler(signal, frame):
-    sys.exit(1)
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Update apps")
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help="increase output verbosity")
     return parser.parse_args()
 
-def get_app_info(project, filter):
+
+def get_app_info(project: str, name_filter: str) -> AppInfo:
     json = requests.get(GH_URL % project).json()
     info = [AppInfo(asset['name'], asset['browser_download_url'])
             for asset in json['assets']
-            if asset['name'].find(filter) != -1]
+            if asset['name'].find(name_filter) != -1]
     return info[0]
 
-def update(project, filter, is_archive, path, bin):
+
+def update_release(project: str, name_filter: str, is_archive: bool,
+                   bin_name: str, path: Optional[str]) -> None:
     print("Updating " + project)
 
-    info = get_app_info(project, filter)
+    info = get_app_info(project, name_filter)
     curl_args = ['curl', '-L', '-O']
     if not args.verbose:
         curl_args += ['-s', '-S']
     check_call(curl_args + [info.dl_url])
 
-    if os.path.exists(bin):
-        os.remove(bin)
+    if os.path.exists(bin_name):
+        os.remove(bin_name)
 
     if is_archive:
+        if path is None:
+            raise ValueError("'path' must be set if 'is_archive' is true")
         with tempfile.NamedTemporaryFile() as fp:
             check_output(['aunpack', '--save-outdir=' + fp.name, info.name],
                          stderr=STDOUT)
             outfile = fp.readlines()
-            log.debug('outfile: ' + str(outfile))
-            if len(outfile) == 0:
-                if path != bin:
-                    shutil.move(path, bin)
+            log.debug('outfile: %s', str(outfile))
+            if not outfile:
+                if path != bin_name:
+                    shutil.move(path, bin_name)
             else:
                 outdir = outfile[0].decode('utf-8').strip()
-                shutil.move(outdir + '/' + path, bin)
+                shutil.move(outdir + '/' + path, bin_name)
                 shutil.rmtree(outdir)
         os.remove(info.name)
     else:
-        if info.name != bin:
-            shutil.move(info.name, bin)
-        os.chmod(bin, 0o755)
+        if info.name != bin_name:
+            shutil.move(info.name, bin_name)
+        os.chmod(bin_name, 0o755)
 
-def main():
+
+def main() -> int:
     if args.verbose:
         log.setLevel(logging.DEBUG)
 
@@ -83,13 +86,18 @@ def main():
     oldpwd = os.getcwd()
     os.chdir(appsdir)
 
-    update('github/hub', 'linux-amd64', True, 'bin/hub', 'hub')
-    update('junegunn/fzf-bin', 'linux_amd64', True, 'fzf', 'fzf')
-    update('Netflix-Skunkworks/go-jira', 'linux-amd64', False, None, 'jira')
+    update_release(project='github/hub', name_filter='linux-amd64',
+                   is_archive=True, bin_name='hub', path='bin/hub')
+    update_release(project='junegunn/fzf-bin', name_filter='linux_amd64',
+                   is_archive=True, bin_name='fzf', path='fzf')
+    update_release(project='Netflix-Skunkworks/go-jira', name_filter='linux-amd64',
+                   is_archive=False, bin_name='jira', path=None)
 
     os.chdir(oldpwd)
 
+    return 0
+
+
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, sigint_handler)
     args = parse_args()
     sys.exit(main())
