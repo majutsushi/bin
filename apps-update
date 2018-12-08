@@ -3,12 +3,13 @@
 # License: MIT/X11
 
 import argparse
+import cgi
 from collections import namedtuple
 from importlib.util import find_spec
 import logging
 import os
 import shutil
-from subprocess import check_call, check_output, STDOUT
+from subprocess import check_output, STDOUT
 import sys
 import tempfile
 from typing import Optional
@@ -42,15 +43,31 @@ def get_app_info(project: str, name_filter: str) -> AppInfo:
     return info[0]
 
 
+def dl_file(url: str, filename: Optional[str] = None) -> None:
+    log.debug("Downloading %s", url)
+    r = requests.get(url)
+    r.raise_for_status()
+
+    if filename is None:
+        if 'content-disposition' in r.headers:
+            _, params = cgi.parse_header(r.headers['content-disposition'])
+            if 'filename*' in params:
+                raise NotImplementedError("'filename*' parameter is not yet supported")
+            if 'filename' not in params:
+                raise ValueError("'filename' parameter not found in header")
+            filename = params['filename']
+        else:
+            _, filename = url.rsplit('/', maxsplit=1)
+    with open(filename, 'wb') as f:
+        f.write(r.content)
+
+
 def update_release(project: str, name_filter: str, is_archive: bool,
                    bin_name: str, path: Optional[str]) -> None:
     print("Updating " + project)
 
     info = get_app_info(project, name_filter)
-    curl_args = ['curl', '-L', '-O']
-    if not args.verbose:
-        curl_args += ['-s', '-S']
-    check_call(curl_args + [info.dl_url])
+    dl_file(info.dl_url, info.name)
 
     if os.path.exists(bin_name):
         os.remove(bin_name)
@@ -75,6 +92,7 @@ def update_release(project: str, name_filter: str, is_archive: bool,
         if info.name != bin_name:
             shutil.move(info.name, bin_name)
         os.chmod(bin_name, 0o755)
+    print("Installed binary '%s'" % bin_name)
 
 
 def main() -> int:
