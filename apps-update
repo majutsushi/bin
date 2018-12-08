@@ -128,6 +128,7 @@ def main() -> int:
     update_script('https://raw.githubusercontent.com/grawity/code/master/term/xterm-color-chooser')
     update_script('https://raw.githubusercontent.com/holman/spark/master/spark')
     update_script('https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy')
+    update_script('https://raw.githubusercontent.com/bill-auger/git-branch-status/master/git-branch-status')
     # pylint: enable=line-too-long
 
     os.chdir(oldpwd)
