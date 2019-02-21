@@ -25,8 +25,11 @@ if [[ -n $TMUX ]]; then
     [[ -z "$SUDO_USER" ]] && OLDTITLE=$(tmux display-message -p "#{pane_title}")
 
     run_vim "$@"
+    RET=$?
 
     [[ -z "$SUDO_USER" ]] && echo -e "\e]0;${OLDTITLE}\e\\"
+
+    exit $RET
 else
     run_vim "$@"
 fi
