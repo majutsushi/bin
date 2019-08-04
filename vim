@@ -3,8 +3,9 @@
 run_vim() {
     # Remove current dir from $PATH to avoid infinite recursion
     MYDIR="$(dirname $(readlink -f "$0"))"
+    MYNAME="$(basename "$0")"
     NEWPATH=$(echo $PATH | sed -r -e "s,${MYDIR}/?:,,")
-    VIMBIN=$(PATH=$NEWPATH which vim)
+    VIMBIN=$(PATH=$NEWPATH which "$MYNAME")
 
     if [[ -n $RANGER_LEVEL && -n $TMUX ]]; then
         # Hacky quoting preservation
