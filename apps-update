@@ -168,6 +168,9 @@ def main() -> int:
     update_script(
         "https://raw.githubusercontent.com/bill-auger/git-branch-status/master/git-branch-status"
     )
+    update_script(
+        "https://raw.githubusercontent.com/mviereck/x11docker/master/x11docker"
+    )
     # pylint: enable=line-too-long
 
     os.chdir(oldpwd)
