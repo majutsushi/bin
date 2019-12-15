@@ -29,27 +29,50 @@ from smtplib import SMTP_SSL
 import socket
 import sys
 import syslog
+from typing import Any, List, Optional, Sequence, Union
 
 
 unsupported_args = ["ba", "bd", "bs", "bt", "bv", "bz"]
-ignored_args = [("B", 1), ("bi", 0), ("bm", 0), ("E", 0), ("h", 1),
-                ("i", 0), ("m", 0), ("M", 1), ("n", 0), ("N", 1),
-                ("o", 1), ("R", 1)]
+ignored_args = [
+    ("B", 1),
+    ("bi", 0),
+    ("bm", 0),
+    ("E", 0),
+    ("h", 1),
+    ("i", 0),
+    ("m", 0),
+    ("M", 1),
+    ("n", 0),
+    ("N", 1),
+    ("o", 1),
+    ("R", 1),
+]
 
 # Unsupported arguments raise an error
 class UnsupportedAction(argparse.Action):
-    def __init__(self, option_strings, dest, nargs, **kwargs):
-        super(UnsupportedAction, self).__init__(option_strings, dest, nargs, **kwargs)
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None],
+        option_string: Optional[str] = None,
+    ) -> None:
         print("%r option not supported" % option_string)
-        sys.exit(0)
+        sys.exit(1)
+
+
 class IgnoredAction(argparse.Action):
-    def __init__(self, option_strings, dest, nargs, **kwargs):
-        super(IgnoredAction, self).__init__(option_strings, dest, nargs, **kwargs)
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None],
+        option_string: Optional[str] = None,
+    ) -> None:
         pass
 
-def parse_args():
+
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="tinymta", add_help=False)
     parser.add_argument("rcpts", nargs="*")
     parser.add_argument("-F", dest="fullname")
@@ -68,13 +91,15 @@ def parse_args():
 
     return parser.parse_args()
 
+
 # Print message and exit successfully
-def exit(s):
+def exit_success(s: str) -> None:
     print(s)
     sys.exit(0)
 
+
 # Log error message to syslog and exit with an error code
-def die(s, msg=None):
+def die(s: Union[str, Exception], msg: Optional[email.message.Message] = None) -> None:
     syslog.syslog(syslog.LOG_WARNING, repr(s))
 
     if msg is not None:
@@ -90,13 +115,18 @@ def die(s, msg=None):
 
     if isinstance(s, Exception) and sys.stdout.isatty():
         raise s
-    else:
-        print(str(s))
-        sys.exit(1)
+
+    print(str(s))
+    sys.exit(1)
+
 
 # Get recipients from the message and command line arguments, then map them to
 # remote recipients according to the config file(s)
-def get_recipients(args, msg, config):
+def get_recipients(
+    args: argparse.Namespace,
+    msg: email.message.Message,
+    config: configparser.ConfigParser,
+) -> List[str]:
     rcpts = [a[1] for a in getaddresses(args.rcpts)]
 
     if args.extract_rcpts:
@@ -105,7 +135,6 @@ def get_recipients(args, msg, config):
             if addresses is None:
                 continue
             rcpts += [a[1] for a in getaddresses(addresses)]
-    rcpts = set(rcpts)
 
     result = []
     for rcpt in rcpts:
@@ -113,20 +142,21 @@ def get_recipients(args, msg, config):
         conf = config[user] if user in config else config["DEFAULT"]
         result.append(conf["recipient"])
 
-    return set(result)
+    return result
+
 
 # Main function
-def main(args):
+def main(args: argparse.Namespace) -> None:
     name = os.path.basename(sys.argv[0])
 
     # Simulate the "mailq" and "newaliases" commands
     if name == "mailq" or args.bp or "q" in args:
-        exit("%s: Mail queue is empty" % name)
+        exit_success("%s: Mail queue is empty" % name)
     if name == "newaliases":
-        exit("%s: Aliases are not used in tinymta" % name)
+        exit_success("%s: Aliases are not used in tinymta" % name)
 
     if len(args.rcpts) == 0 and not args.extract_rcpts:
-        exit("%s: No recipients supplied - mail will not be sent" % name)
+        exit_success("%s: No recipients supplied - mail will not be sent" % name)
 
     # Parse mail passed in through stdin
     msg = email.message_from_bytes(sys.stdin.buffer.read())
@@ -140,8 +170,9 @@ def main(args):
         # Read configuration, with user config overriding system-wide one
         # TODO: Proper per-user/recipient configuration
         config = configparser.ConfigParser()
-        config.read(["/etc/tinymta.conf",
-                     os.path.join(pw.pw_dir, ".config/tinymta.conf")])
+        config.read(
+            ["/etc/tinymta.conf", os.path.join(pw.pw_dir, ".config/tinymta.conf")]
+        )
         defaultconf = config["DEFAULT"]
 
         rcpts = get_recipients(args, msg, config)
@@ -172,13 +203,15 @@ def main(args):
             smtp.login(defaultconf["username"], defaultconf["password"])
             smtp.send_message(msg, from_addr=fromaddr, to_addrs=rcpts)
 
-        syslog.syslog(syslog.LOG_INFO,
-                      "Sent mail with subject %r to %s" % (msg.get("Subject"), str(rcpts)))
-    except Exception as e:
+        syslog.syslog(
+            syslog.LOG_INFO,
+            "Sent mail with subject %r to %s" % (msg.get("Subject"), str(rcpts)),
+        )
+    except Exception as e:  # pylint: disable=broad-except
         if sys.stdin.isatty():
             raise e
-        else:
-            die(e, msg)
+        die(e, msg)
+
 
 if __name__ == "__main__":
-    sys.exit(main(parse_args()))
+    main(parse_args())
