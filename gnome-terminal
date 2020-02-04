@@ -1,8 +1,0 @@
-#!/bin/bash
-
-if [[ ${#@} > 0 ]]; then
-    shift
-    exec urxvt -e "$@"
-else
-    exec urxvt
-fi
