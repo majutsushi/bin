@@ -6,4 +6,4 @@ IFS=$'\n\t'
 error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
 trap 'error_handler ${LINENO} $?' ERR
 
-uni '.*' | rofi -dmenu -i | awk '{ print $1 }' | xclip -i -selection clipboard
+uni '.*' | rofi -dmenu -i | awk '{ print $1 }' | tr -d "\n" | xclip -i -selection clipboard
