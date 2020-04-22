@@ -36,6 +36,13 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="print revision args instead of running git log",
     )
+    parser.add_argument(
+        "-l",
+        "--long",
+        action="store_true",
+        default=False,
+        help="print revisions with a longer format",
+    )
     return parser.parse_args()
 
 
@@ -65,6 +72,16 @@ def main(args: argparse.Namespace) -> None:
     if args.simplify:
         extra_args.append("--simplify-by-decoration")
         extra_args.append("--boundary")
+
+    if args.long:
+        extra_args.append(
+            '--pretty=tformat:"'
+            "%C(auto,yellow)%h"
+            " %C(auto,blue)%ad"
+            " %C(auto,green)%<(15,trunc)%an"
+            " %C(auto)%d"
+            ' %Creset%s"'
+        )
 
     if args.print_args:
         print(" ".join(extra_args + rev_args))
