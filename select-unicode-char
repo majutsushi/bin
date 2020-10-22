@@ -1,9 +1,49 @@
-#!/bin/bash
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
 
-set -eEu -o pipefail
-IFS=$'\n\t'
+import sys
+import unicodedata
+from subprocess import CalledProcessError, run
 
-error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
-trap 'error_handler ${LINENO} $?' ERR
+UNICODE_END = 0xE01EF
 
-uni '.*' | rofi -dmenu -i | awk '{ print $1 }' | tr -d "\n" | xclip -i -selection clipboard
+
+def main() -> int:
+    chars = [
+        c + "\t" + name
+        for c, name in (
+            (c, unicodedata.name(c, None)) for c in map(chr, range(0x0, UNICODE_END))
+        )
+        if name is not None
+    ]
+    stdin = "\n".join(chars)
+
+    try:
+        p = run(
+            ["rofi", "-dmenu", "-i"],
+            input=stdin,
+            text=True,
+            check=True,
+            capture_output=True,
+        )
+    except CalledProcessError:
+        return 1
+
+    selected = p.stdout.splitlines()[0].split("\t")[0]
+    try:
+        p = run(
+            ["xclip", "-i", "-selection", "clipboard"],
+            input=selected,
+            text=True,
+            check=True,
+        )
+    except Exception as e:
+        run(["rofi", "-e", str(e)], check=True)
+        raise
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
