@@ -3,53 +3,40 @@
 # License: MIT/X11
 
 import argparse
-import fileinput
-import keyring
-import requests
-import signal
-import sys
-import time
-
 import logging
-logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.WARNING)
+import sys
+
+import requests
+
+logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.WARNING)
 log = logging.getLogger(__name__)
 
-try:
-    import better_exceptions
-except Exception:
-    pass
 
-def sigint_handler(signal, frame):
-    sys.exit(1)
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Foo")
-    parser.add_argument("-v", "--verbose", action="store_true", default=False,
-                        help="increase output verbosity")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Print timezone based on current IP address"
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="increase output verbosity",
+    )
     return parser.parse_args()
 
-def main(args):
+
+def main(args: argparse.Namespace) -> int:
     if args.verbose:
         log.setLevel(logging.DEBUG)
 
-    r = requests.get('https://ipinfo.io/json').json()
+    r = requests.get("https://ipinfo.io/json").json()
     log.debug(r)
-    loc = r['loc']
-
-    epoch_time = int(time.time())
-
-    key = keyring.get_password('google_maps_api', 'gettz')
-
-    log.debug(epoch_time)
-    params = { 'location': loc,
-               'timestamp': epoch_time,
-               'key': key }
-    r = requests.get('https://maps.googleapis.com/maps/api/timezone/json',
-                     params=params).json()
-    log.debug(r)
-    tz = r['timeZoneId']
+    tz = r["timezone"]
     print(tz)
 
+    return 0
+
+
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, sigint_handler)
     sys.exit(main(parse_args()))
