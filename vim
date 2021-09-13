@@ -1,20 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 run_vim() {
     # Remove current dir from $PATH to avoid infinite recursion
-    MYDIR="$(dirname $(readlink -f "$0"))"
+    MYDIR="$(dirname "$(readlink -f "$0")")"
     MYNAME="$(basename "$0")"
-    NEWPATH=$(echo $PATH | sed -r -e "s,${MYDIR}/?:,,")
-    VIMBIN=$(PATH=$NEWPATH which "$MYNAME")
+    NEWPATH=$(echo "$PATH" | sed -r -e "s,${MYDIR}/?:,,")
+    VIMBIN=$(PATH=$NEWPATH command -v "$MYNAME")
 
     if [[ -n $RANGER_LEVEL && -n $TMUX ]]; then
-        # Hacky quoting preservation
-        declare -a files
-        for i in "$@"; do
-            i=\"$i\"
-            files=( $files "$i" )
-        done
-        CMD="command $VIMBIN "${files[@]}""
+        CMD="command $VIMBIN$(printf " %q" "$@")"
 
         tmux new-window -a -c '#{pane_current_path}' "$CMD"
     else
