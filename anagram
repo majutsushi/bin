@@ -1,22 +1,29 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # From https://gist.github.com/avinashv/2444 with a few tweaks.
+
 
 def anagram_solve(letters, words):
     solution = [word.lower() for word in words if len(word) == len(letters)]
 
     for letter in letters:
-        solution = [word for word in solution if letter in word and letters.count(letter) == word.count(letter)]
+        solution = [
+            word
+            for word in solution
+            if letter in word and letters.count(letter) == word.count(letter)
+        ]
 
     return set(solution)
+
 
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) == 1:
-        print "Usage: %s [anagram]" % sys.argv[0]
+        print(f"Usage: {sys.argv[0]} [anagram]")
     else:
-        words = [word.rstrip() for word in file('/usr/share/dict/words', 'r')]
+        words = [word.rstrip() for word in open("/usr/share/dict/words", "r")]
 
         for anagram in sys.argv[1:]:
             anagram = anagram.lower()
-            print "%s: %s" % (anagram, " ".join(anagram_solve(anagram, words)))
+            solutions = anagram_solve(anagram, words)
+            print(f"{anagram}: {' '.join(solutions)}")
