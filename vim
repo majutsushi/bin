@@ -28,7 +28,7 @@ if [[ -n $TMUX ]]; then
     run_vim "$@"
     RET=$?
 
-    [[ -z "$SUDO_USER" ]] && echo -e "\e]0;${OLDTITLE}\e\\"
+    [[ -z "$SUDO_USER" ]] && printf '\e]0;%s\e'\\ "${OLDTITLE}"
 
     exit $RET
 else
