@@ -1,3 +1,9 @@
 #!/bin/bash
 
-[[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == "Dark" ]]
+if command -v gsettings >/dev/null; then
+    [[ $(gsettings get org.gnome.desktop.interface color-scheme) == \'prefer-dark\' ]]
+elif command -v defaults >/dev/null; then
+    [[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == "Dark" ]]
+else
+    exit 0
+fi
