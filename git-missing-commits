@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+
+import argparse
+import sys
+from collections import defaultdict
+from subprocess import STDOUT, CalledProcessError, call, check_output
+from typing import Tuple
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Check for missing commits on a branch compared to another branch"
+    )
+    parser.add_argument(
+        "target", metavar="target-branch", help="The branch to apply commits to"
+    )
+    parser.add_argument(
+        "source", metavar="source-branch", help="The branch to pick commits from"
+    )
+    parser.add_argument(
+        "--limit",
+        help="Exclude commits up to (and including) LIMIT on the source branch.",
+    )
+    return parser.parse_args()
+
+
+def git(args: list[str]) -> list[str]:
+    try:
+        return check_output(["git"] + args, stderr=STDOUT).decode("utf-8").splitlines()
+    except CalledProcessError as e:
+        print("Command '" + " ".join(["git"] + args) + "' failed with output:")
+        print(e.output.decode("utf-8"))
+        sys.exit(1)
+
+
+def parse_cherry_output(commits: list[str]) -> list[Tuple[str, str]]:
+    result = []
+
+    for commit in commits:
+        if commit[0] == "-":
+            continue
+        # Remove '+ ' at the front
+        commit = commit[2:]
+
+        commit_hash = commit[: commit.index(" ")]
+        summary = commit[commit.index(" ") + 1 :]
+
+        result.append((commit_hash, summary))
+
+    return result
+
+
+def show_commit(commit: str) -> None:
+    call(
+        [
+            "git",
+            "--no-pager",
+            "show",
+            "--pretty=tformat:%C(auto,yellow)%h %C(auto,blue)%ai %C(auto,green)%<(15,trunc)%an %Creset%s",
+            "--no-patch",
+            commit,
+        ]
+    )
+
+
+def main(args: argparse.Namespace) -> None:
+    missing_in_target_args = ["cherry", "-v", args.target, args.source]
+    if args.limit is not None:
+        missing_in_target_args += [args.limit]
+    missing_in_target = parse_cherry_output(git(missing_in_target_args))
+    missing_in_source = parse_cherry_output(
+        git(["cherry", "-v", args.source, args.target])
+    )
+
+    duplicates = []
+    uniques = []
+
+    # Store commits missing in the source branch in a multimap keyed by summary,
+    # to be able to quickly look up possible duplicates
+    src_by_summary = defaultdict(list)
+    for (commit_hash, summary) in missing_in_source:
+        src_by_summary[summary].append(commit_hash)
+
+    # If the summary of a missing commit is in the above multimap then we add
+    # it to the possible duplicats, otherwise it's clearly unique
+    for (commit_hash, summary) in missing_in_target:
+        if summary in src_by_summary:
+            duplicates.append(commit_hash)
+            duplicates += src_by_summary[summary]
+        else:
+            uniques.append(commit_hash)
+
+    if len(uniques) != 0:
+        print("Unique missing commits (oldest first):")
+        for commit in uniques:
+            show_commit(commit)
+
+    if len(duplicates) != 0:
+        if len(uniques) != 0:
+            print()
+        print("Possible duplicates:")
+        for commit in duplicates:
+            show_commit(commit)
+
+
+if __name__ == "__main__":
+    main(parse_args())

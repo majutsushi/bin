@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# List branches (excluding release branches) that haven't been merged to the
+# branch given as the first argument yet (default main). Accepts "git
+# branch" options like -r/-a.
+
+BRANCH=main
+OPTS=""
+
+while (( $# >= 1 )); do
+    case "$1" in
+        -*) OPTS="$1" ;;
+        *)  BRANCH="$1" ;;
+    esac
+    shift
+done
+
+git branch $OPTS --no-merged=${BRANCH} | \
+    sed -r -e 's/^[ *] //' | \
+    grep -E -v '^(\(HEAD|release-)' | \
+    xargs -L1 --no-run-if-empty \
+        git --no-pager log --pretty=tformat:'%C(auto,yellow)%h%Creset %C(auto,blue)%ai%Creset %C(auto)%d%Creset %s' -1
