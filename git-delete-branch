@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Based on https://github.com/tj/git-extras/blob/master/bin/git-delete-branch
+
+set -eEu -o pipefail
+IFS=$'\n\t'
+PS4='+\t '
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+[[ "${TRACE:-0}" == "1" ]] && set -x
+
+
+# Assert there is at least one branch provided
+test -z "$1" && echo "branch required." 1>&2 && exit 1
+
+for branch in "$@"; do
+    remote=$(git config "branch.$branch.remote" || echo "origin")
+    ref=$(git config "branch.$branch.merge" || echo "refs/heads/$branch")
+
+    git branch --delete --force "$branch" || true
+    # Avoid deleting local upstream
+    [[ "$remote" == "." ]] && continue
+    git branch --delete --remotes "$remote/$branch" || continue
+    git push --delete "$remote" "$ref"
+done
