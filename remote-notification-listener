@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+#
+# https://nitish.ch/notes/notifications-in-mac-from-a-linux-ssh-server/
+#
+# Use like this:
+# curl -X POST -d "$cmd"$'\n'"$ret"$'\n'"$source" localhost:7777
+# "docker run" on Linux needs option --add-host=host.docker.internal:host-gateway
+# to make host host.docker.internal available
+#
+# Example bashrc snippet:
+# prompt_command() {
+#     local ret=$?
+#     local end=$(date '+%s');
+#     local last_cmd="$(HISTTIMEFORMAT='%s ' history 1)";
+#     local start=$(awk '{print $2}' <<<"$last_cmd");
+#     local cmd=$(cut -d' ' -f6- <<<"$last_cmd");
+#
+#     if (( end - start < 20 )); then
+#         return
+#     fi
+#
+#     curl -s -X POST -d "$cmd"$'\n'"$ret"$'\n'"container" localhost:7777
+#
+#     history -a
+# }
+#
+# PROMPT_COMMAND='prompt_command'
+
+import http
+import shutil
+import subprocess
+import sys
+from http import server
+
+
+class NotificationHandler(server.BaseHTTPRequestHandler):
+    def do_POST(self) -> None:
+        length = int(self.headers["Content-Length"])
+
+        # Since the socket is not an interactive socket, we can be
+        # sure that `command` contains the entire body. We don't
+        # bother with any Content-Encoding stuff.
+        try:
+            body = self.rfile.read(length).decode("utf-8")
+            # time and command are separated by a newline
+            command, return_code, source = body.split("\n")
+
+            # We have to escape \ and " in the command. Otherwise, we
+            # may be vulnerable to accidental command injection.
+            command = command.replace("\\", "\\\\").replace('"', '\\"')
+
+            if int(return_code) == 0:
+                title = "✅ Background job finished"
+            else:
+                title = "❌ Background job failed"
+        except Exception as e:
+            print(f"Failed to parse the body - '{body}': {e}", file=sys.stderr)
+            self.send_error(http.HTTPStatus.BAD_REQUEST)
+            return
+
+        # Display a notification with this command now
+        try:
+            if shutil.which("notify-send") is not None:
+                body = f"$ {command}\n<span font-style='italic'>{source}</span>"
+                cmd = ["notify-send", "--expire-time=10000", title, body]
+            elif shutil.which("osascript") is not None:
+                cmd = [
+                    "osascript",
+                    "-e",
+                    f'display notification "{command}" with title "{title}" subtitle "Source {source}"',
+                ]
+            else:
+                print("No notification program found")
+                self.send_error(http.HTTPStatus.NOT_IMPLEMENTED)
+                return
+            subprocess.check_output(cmd)
+        except subprocess.CalledProcessError as e:
+            print(f"Command {e.cmd} failed due to error {e.output}", file=sys.stderr)
+            self.send_error(http.HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
+        self.send_response_only(http.HTTPStatus.ACCEPTED)
+        self.flush_headers()
+
+
+if __name__ == "__main__":
+    server_address = ("localhost", 7777)
+    httpd = server.HTTPServer(server_address, NotificationHandler)
+    httpd.serve_forever()
