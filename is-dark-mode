@@ -1,5 +1,26 @@
 #!/bin/bash
 
+set -u -o pipefail
+
+# https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Settings
+if command -v dbus-send >/dev/null; then
+    if setting=$(dbus-send \
+                    --session \
+                    --print-reply=literal \
+                    --reply-timeout=1000 \
+                    --dest=org.freedesktop.portal.Desktop \
+                    /org/freedesktop/portal/desktop \
+                    org.freedesktop.portal.Settings.Read \
+                    string:'org.freedesktop.appearance' \
+                    string:'color-scheme' | awk '{ print $4 }'); then
+        if [[ $setting == 1 ]]; then
+            exit 0
+        else
+            exit 1
+        fi
+    fi
+fi
+
 if command -v gsettings >/dev/null; then
     [[ $(gsettings get org.gnome.desktop.interface color-scheme) == \'prefer-dark\' ]]
 elif command -v defaults >/dev/null; then
