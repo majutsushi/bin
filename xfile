@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+set -eEu -o pipefail
+IFS=$'\n\t'
+PS4='+\t '
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+[[ "${TRACE:-0}" == "1" ]] && set -x
+
+
+FILE_PATH="$1"
+
+has_cmd() {
+    type -P "$1" > /dev/null
+}
+
+if has_cmd gio; then
+    echo "---- shared-mime-info type ----"
+    gio info --attributes=standard::content-type "$FILE_PATH" | tail -n 1 | cut -d" " -f4
+    echo
+fi
+if has_cmd mimetype; then
+    # Print type again because of https://github.com/mbeijen/File-MimeInfo/issues/11
+    echo "---- shared-mime-info (Perl) type ----"
+    mimetype --dereference --brief --describe "$FILE_PATH"
+    mimetype --dereference --brief "$FILE_PATH"
+    echo
+fi
+echo "---- magic(5) type ----"
+file --dereference --brief "$FILE_PATH"
+file --dereference --brief --mime "$FILE_PATH"
+
+if has_cmd hexyl; then
+    echo
+    echo "---- First 256 bytes ----"
+    hexyl --length 256 --color always "$FILE_PATH"
+fi
