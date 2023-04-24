@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+sshrc_tar() {
+    local sshhome="$1"
+    shift
+    tar cfz - -h -C "$sshhome" --absolute-names --transform='flags=r;s|^/.*/([^/]+)$|.sshrc.d/\1|x' "$@"
+}
+
 sshrc() {
     local SSHHOME=${SSHHOME:=~}
     if [[ -f "$SSHHOME/.sshrc" ]]; then
@@ -7,7 +13,12 @@ sshrc() {
         if [[ -d "$SSHHOME/.sshrc.d" ]]; then
             files+=( .sshrc.d )
         fi
-        SIZE=$(tar cfz - -h -C "$SSHHOME" "${files[@]}" | wc -c)
+        if [[ -n "$SSHRC_FILES" ]]; then
+            local -a additional_files
+            IFS="|" read -a additional_files -r <<<"$SSHRC_FILES"
+            files+=( "${additional_files[@]}" )
+        fi
+        SIZE=$(sshrc_tar "$SSHHOME" "${files[@]}" | wc -c)
         if (( SIZE > 65536 )); then
             echo >&2 $'.sshrc.d and .sshrc files must be less than 64kb\ncurrent size: '"$SIZE"' bytes'
             exit 1
@@ -61,7 +72,7 @@ EOF
                 )' | tr -s ' ' $'\n' | openssl enc -base64 -d > \$SSHHOME/bashsshrc
             chmod +x \$SSHHOME/bashsshrc
 
-            echo $'$(tar czf - -h -C "$SSHHOME" "${files[@]}" | openssl enc -base64)' | tr -s ' ' $'\n' | openssl enc -base64 -d | tar mxzf - -C \$SSHHOME
+            echo $'$(sshrc_tar "$SSHHOME" "${files[@]}" | openssl enc -base64)' | tr -s ' ' $'\n' | openssl enc -base64 -d | tar mxzf - -C \$SSHHOME
             export SSHHOME=\$SSHHOME
             echo \"$CMDARG\" >> \$SSHHOME/sshrc.bashrc
             bash --rcfile \$SSHHOME/sshrc.bashrc
