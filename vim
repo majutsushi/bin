@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 run_vim() {
-    # Remove current dir from $PATH to avoid infinite recursion
+    # Remove script dir from $PATH to avoid infinite recursion
     MYDIR="$(dirname "$(readlink -f "$0")")"
     MYNAME="$(basename "$0")"
     NEWPATH=$(echo "$PATH" | sed -r -e "s,${MYDIR}/?:,,")
@@ -11,6 +11,8 @@ run_vim() {
         CMD="command $VIMBIN$(printf " %q" "$@")"
 
         tmux new-window -a -c '#{pane_current_path}' "$CMD"
+    elif [[ -n $RANGER_LEVEL && "$TERM" == xterm-kitty ]]; then
+        kitty @ launch --type tab --no-response --cwd current "$VIMBIN" "$@"
     else
         command $VIMBIN "$@"
     fi
