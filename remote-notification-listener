@@ -15,11 +15,9 @@
 #     local start=$(awk '{print $2}' <<<"$last_cmd");
 #     local cmd=$(cut -d' ' -f6- <<<"$last_cmd");
 #
-#     if (( end - start < 20 )); then
-#         return
+#     if (( end - start >= 20 )); then
+#         curl -s -X POST -d "$cmd"$'\n'"$ret"$'\n'"container" localhost:7777
 #     fi
-#
-#     curl -s -X POST -d "$cmd"$'\n'"$ret"$'\n'"container" localhost:7777
 #
 #     history -a
 # }
