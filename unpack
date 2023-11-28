@@ -52,6 +52,7 @@ def register_formats() -> None:
     )
 
     shutil.register_unpack_format("7z", [".7z"], unpack_7z)
+    shutil.register_unpack_format("arc", [".arc"], unpack_arc)
     shutil.register_unpack_format(
         "bz2", [".bz2"], expand_file, extra_args=[("open_func", bz2.open)]
     )
@@ -67,6 +68,7 @@ def register_formats() -> None:
         expand_file,
         extra_args=[("open_func", lzma.open)],
     )
+    shutil.register_unpack_format("zoo", [".zoo"], unpack_zoo)
 
     unrar_func = unpack_rar if shutil.which("unrar") else unpack_7z
     shutil.register_unpack_format("rar", [".rar", ".cbr"], unrar_func)
@@ -86,6 +88,13 @@ def expand_file(
 
 def unpack_7z(archive: str, output_dir: str) -> None:
     subprocess.run(["7z", "x", f"-o{output_dir}", archive], check=True)
+
+
+def unpack_arc(archive: str, output_dir: str) -> None:
+    if shutil.which("unar"):
+        subprocess.run(["unar", "-o", output_dir, archive], check=True)
+    else:
+        subprocess.run(["arc", "x", archive], cwd=output_dir, check=True)
 
 
 def unpack_deb(archive: str, output_dir: str) -> None:
@@ -110,6 +119,10 @@ def unpack_rpm(archive: str, output_dir: str) -> None:
     proc = subprocess.Popen(["rpm2cpio", archive], stdout=subprocess.PIPE)
     subprocess.run(["cpio", "-idmv"], cwd=output_dir, stdin=proc.stdout, check=True)
     proc.wait()
+
+
+def unpack_zoo(archive: str, output_dir: str) -> None:
+    subprocess.run(["unar", "-o", output_dir, archive], check=True)
 
 
 def do_unpack(archive: Path, output_path: Path) -> None:
