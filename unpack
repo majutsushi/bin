@@ -85,7 +85,7 @@ def expand_file(
 
 
 def unpack_7z(archive: str, output_dir: str) -> None:
-    subprocess.run(["7z", "x", archive], cwd=output_dir, check=True)
+    subprocess.run(["7z", "x", f"-o{output_dir}", archive], check=True)
 
 
 def unpack_deb(archive: str, output_dir: str) -> None:
@@ -103,7 +103,7 @@ def unpack_lha(archive: str, output_dir: str) -> None:
 
 
 def unpack_rar(archive: str, output_dir: str) -> None:
-    subprocess.run(["unrar", "x", archive], cwd=output_dir, check=True)
+    subprocess.run(["unrar", "x", archive, f"{output_dir}/"], check=True)
 
 
 def unpack_rpm(archive: str, output_dir: str) -> None:
