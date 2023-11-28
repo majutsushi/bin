@@ -7,11 +7,11 @@ run_vim() {
     NEWPATH=$(echo "$PATH" | sed -r -e "s,${MYDIR}/?:,,")
     VIMBIN=$(PATH=$NEWPATH command -v "$MYNAME")
 
-    if [[ -n $RANGER_LEVEL && -n $TMUX ]]; then
+    if [[ -n $RANGER_LEVEL && -n $TMUX ]] && (( ${VIM_FORK:-1} == 1 )); then
         CMD="command $VIMBIN$(printf " %q" "$@")"
 
         tmux new-window -a -c '#{pane_current_path}' "$CMD"
-    elif [[ -n $RANGER_LEVEL && "$TERM" == xterm-kitty ]]; then
+    elif [[ -n $RANGER_LEVEL && "$TERM" == xterm-kitty ]] && (( ${VIM_FORK:-1} == 1 )); then
         kitty @ launch --type tab --no-response --cwd current "$VIMBIN" "$@"
     else
         command $VIMBIN "$@"
