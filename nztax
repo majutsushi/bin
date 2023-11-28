@@ -1,33 +1,35 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import sys
 
 salary = float(sys.argv[1])
 
-tax = 0
+tax = 0.0
 
-tiers = [{'thresh' : 14000,        'rate' : 0.105},
-         {'thresh' : 48000,        'rate' : 0.175},
-         {'thresh' : 70000,        'rate' : 0.3},
-         {'thresh' : float("inf"), 'rate' : 0.33}]
+tiers = [
+    {"thresh": 14000, "rate": 0.105},
+    {"thresh": 48000, "rate": 0.175},
+    {"thresh": 70000, "rate": 0.3},
+    {"thresh": float("inf"), "rate": 0.33},
+]
 
-for idx in range(0, len(tiers)):
-    thresh = tiers[idx]['thresh']
-    rate = tiers[idx]['rate']
+for idx in range(len(tiers)):
+    thresh = tiers[idx]["thresh"]
+    rate = tiers[idx]["rate"]
 
     curlimit = min(salary, thresh)
     if idx > 0:
-        tax += (curlimit - tiers[idx - 1]['thresh']) * rate
+        tax += (curlimit - tiers[idx - 1]["thresh"]) * rate
     else:
         tax += curlimit * rate
 
     if salary < thresh:
         break
 
-print 'annual gross: ' + str(salary)
-print 'monthly gross: ' + str(round(salary / 12, 2))
-print 'annual net: ' + str(salary - tax)
-print 'annual tax: ' + str(tax)
-print 'monthly net: ' + str(round((salary - tax) / 12, 2))
-print 'monthly tax: ' + str(round(tax / 12, 2))
-print 'effective rate: ' + str(round(tax/salary * 100, 2)) + '%'
+print("annual gross: " + str(salary))
+print("monthly gross: " + str(round(salary / 12, 2)))
+print("annual net: " + str(salary - tax))
+print("annual tax: " + str(tax))
+print("monthly net: " + str(round((salary - tax) / 12, 2)))
+print("monthly tax: " + str(round(tax / 12, 2)))
+print("effective rate: " + str(round(tax / salary * 100, 2)) + "%")
