@@ -13,6 +13,17 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import BinaryIO, Callable  # noqa: UP035
 
+MIMETYPES = {
+    "application/vnd.comicbook+zip": "zip",
+    "application/vnd.comicbook-rar": "rar",
+    "application/x-7z-compressed": "7z",
+    "application/x-bzip-compressed-tar": "bztar",
+    "application/x-compressed-tar": "gztar",
+    "application/x-lha": "lha",
+    "application/x-tar": "tar",
+    "application/x-xz-compressed-tar": "xztar",
+}
+
 
 class UnpackError(Exception):
     pass
@@ -23,7 +34,7 @@ def main(args: argparse.Namespace) -> None:
 
     try:
         do_unpack(args.archive, Path.cwd())
-    except UnpackError as e:
+    except Exception as e:  # noqa: BLE001
         if args.verbose:
             raise
         print(e)
@@ -46,7 +57,7 @@ def register_formats() -> None:
     # Register some additional extensions for ZIP files
     shutil.register_unpack_format(
         "zip2",
-        [".jar", ".war", ".ear", ".xpi", ".cbz"],
+        [".jar", ".war", ".ear", ".xpi", ".cbz", ".epub"],
         shutil._unpack_zipfile,  # type: ignore[attr-defined]
         description="Additional ZIP extensions",
     )
@@ -131,7 +142,20 @@ def do_unpack(archive: Path, output_path: Path) -> None:
         try:
             shutil.unpack_archive(archive, tmpdir)
         except shutil.ReadError as e:
-            raise UnpackError(str(e)) from e
+            # Try getting the mimetype with Gio
+            from gi.repository import Gio
+
+            with archive.open("rb") as f:
+                mime = Gio.content_type_guess(
+                    filename=os.fspath(archive), data=f.read(1024)
+                )[0]
+            if mime in MIMETYPES:
+                try:
+                    shutil.unpack_archive(archive, tmpdir, format=MIMETYPES[mime])
+                except shutil.ReadError as e2:
+                    raise UnpackError(str(e2)) from e
+            else:
+                raise UnpackError(str(e)) from e
 
         items = list(Path(tmpdir).iterdir())
         if len(items) == 0:
