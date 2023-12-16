@@ -3,18 +3,65 @@
 # License: MIT/X11
 
 import argparse
-from subprocess import run, check_output, CalledProcessError
-import sys
-
 import logging
+import sys
+from subprocess import CalledProcessError, check_output, run
 
-logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
+logging.basicConfig(format="%(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
+
+
+def main(args: argparse.Namespace) -> None:
+    if args.verbose:
+        log.setLevel(logging.DEBUG)
+
+    revs = args.rev
+    match len(revs):
+        case 0:
+            revs = ["@{upstream}", "HEAD"]
+        case 1:
+            revs += ["HEAD"]
+
+    cmd = ["git", "merge-base", "--octopus", "--all", *revs]
+    log.debug("merge-base command: '%s'", " ".join(cmd))
+    try:
+        merge_bases = check_output(cmd).decode(sys.stdout.encoding).splitlines()
+    except CalledProcessError as e:
+        die("Failed to find merge bases", args.verbose, e)
+
+    exclusions = [f"{base}^" for base in merge_bases]
+    log.debug("Exclusions: '%s'", " ".join(exclusions))
+
+    rev_args = [*revs, "--not", *exclusions]
+
+    extra_args = ["--topo-order", "--boundary"]
+
+    if args.simplify:
+        extra_args.append("--simplify-by-decoration")
+
+    if args.long:
+        extra_args.append(
+            '--pretty=tformat:"'
+            "%C(auto,yellow)%h"
+            " %C(auto,blue)%ad"
+            " %C(auto,green)%<(15,trunc)%an"
+            " %C(auto)%d"
+            ' %Creset%s"'
+        )
+
+    if args.print_args:
+        print(" ".join(extra_args + rev_args))
+        sys.exit(0)
+
+    log_cmd = ["git", "log", "--oneline", "--decorate", "--graph"]
+    log_cmd += extra_args + rev_args
+    log.debug("Full command: '%s'", " ".join(log_cmd))
+    run(log_cmd, check=True)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Log graph of branch diverge")
-    parser.add_argument("rev", nargs="+", help="Revisions to log")
+    parser.add_argument("rev", nargs="*", help="Revisions to log")
     parser.add_argument(
         "-v",
         "--verbose",
@@ -46,51 +93,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main(args: argparse.Namespace) -> None:
-    if args.verbose:
-        log.setLevel(logging.DEBUG)
-
-    revs = args.rev
-    if len(revs) == 1:
-        revs += ["HEAD"]
-
-    cmd = ["git", "merge-base", "--octopus", "--all"] + revs
-    log.debug(cmd)
-    try:
-        merge_bases = check_output(cmd).decode("utf-8").splitlines()
-    except CalledProcessError:
-        print("Failed to run command '%s'" % " ".join(cmd))
-        sys.exit(1)
-
-    exclusions = [base + "^" for base in merge_bases]
-    log.debug(exclusions)
-
-    rev_args = revs + ["--not"] + exclusions
-
-    extra_args = ["--topo-order"]
-
-    if args.simplify:
-        extra_args.append("--simplify-by-decoration")
-        extra_args.append("--boundary")
-
-    if args.long:
-        extra_args.append(
-            '--pretty=tformat:"'
-            "%C(auto,yellow)%h"
-            " %C(auto,blue)%ad"
-            " %C(auto,green)%<(15,trunc)%an"
-            " %C(auto)%d"
-            ' %Creset%s"'
-        )
-
-    if args.print_args:
-        print(" ".join(extra_args + rev_args))
-        sys.exit(0)
-
-    log_cmd = ["git", "log", "--oneline", "--decorate", "--graph"]
-    log_cmd += extra_args + rev_args
-    log.debug(log_cmd)
-    run(log_cmd, check=True)
+def die(msg: str, verbose: bool, e=None) -> None:
+    log.error(msg, exc_info=e if verbose else None)
+    sys.exit(1)
 
 
 if __name__ == "__main__":
