@@ -35,15 +35,18 @@ sshrc() {
             WELCOME_MSG=""
         fi
         ssh -t "$DOMAIN" "${SSHARGS[@]}" "
-            command -v openssl >/dev/null 2>&1 || { echo >&2 \"sshrc requires openssl to be installed on the server, but it's not. Aborting.\"; exit 1; }
+            (command -v base64 >/dev/null || command -v openssl >/dev/null) || { echo >&2 \"sshrc requires base64 or openssl to be installed on the server, but they're not. Aborting.\"; exit 1; }
+            if ! command -v base64 >/dev/null; then
+                base64() { openssl enc -base64 \"\$@\"; }
+            fi
             $WELCOME_MSG
             export SSHHOME=\$(mktemp -d -t .$(whoami).sshrc.XXXX)
             export SSHRCCLEANUP=\$SSHHOME
             trap \"rm -rf \$SSHRCCLEANUP; exit\" 0
-            echo $'$(openssl enc -base64 < "$0")' | tr -s ' ' $'\n' | openssl enc -base64 -d > \$SSHHOME/sshrc
+            echo $'$(base64 < "$0")' | tr -s ' ' $'\n' | base64 -d > \$SSHHOME/sshrc
             chmod +x \$SSHHOME/sshrc
 
-            echo $'$( cat << 'EOF' | openssl enc -base64
+            echo $'$( cat << 'EOF' | base64
                 if [ -r /etc/profile ]; then source /etc/profile; fi
                 if [ -r ~/.bash_profile ]; then source ~/.bash_profile
                 elif [ -r ~/.bash_login ]; then source ~/.bash_login
@@ -52,9 +55,9 @@ sshrc() {
                 export PATH=$PATH:$SSHHOME
                 source $SSHHOME/.sshrc;
 EOF
-                )' | tr -s ' ' $'\n' | openssl enc -base64 -d > \$SSHHOME/sshrc.bashrc
+                )' | tr -s ' ' $'\n' | base64 -d > \$SSHHOME/sshrc.bashrc
 
-            echo $'$( cat << 'EOF' | openssl enc -base64
+            echo $'$( cat << 'EOF' | base64
 #!/usr/bin/env bash
                 if [ -z "${SSHHOME}" ]; then
                     export SSHHOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -69,10 +72,10 @@ EOF
                 export PATH=$PATH:'$SSHHOME'
                 ') "$@"
 EOF
-                )' | tr -s ' ' $'\n' | openssl enc -base64 -d > \$SSHHOME/bashsshrc
+                )' | tr -s ' ' $'\n' | base64 -d > \$SSHHOME/bashsshrc
             chmod +x \$SSHHOME/bashsshrc
 
-            echo $'$(sshrc_tar "$SSHHOME" "${files[@]}" | openssl enc -base64)' | tr -s ' ' $'\n' | openssl enc -base64 -d | tar mxzf - -C \$SSHHOME
+            echo $'$(sshrc_tar "$SSHHOME" "${files[@]}" | base64)' | tr -s ' ' $'\n' | base64 -d | tar mxzf - -C \$SSHHOME
             export SSHHOME=\$SSHHOME
             echo \"$CMDARG\" >> \$SSHHOME/sshrc.bashrc
             bash --rcfile \$SSHHOME/sshrc.bashrc
@@ -109,6 +112,6 @@ sshrc_parse() {
     fi
 }
 
-command -v openssl >/dev/null 2>&1 || { echo >&2 "sshrc requires openssl to be installed locally, but it's not. Aborting."; exit 1; }
+command -v base64 >/dev/null || { echo >&2 "sshrc requires base64 to be installed locally, but it's not. Aborting."; exit 1; }
 sshrc_parse "$@"
 sshrc
