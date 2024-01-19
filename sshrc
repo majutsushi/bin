@@ -40,7 +40,7 @@ sshrc() {
                 base64() { openssl enc -base64 \"\$@\"; }
             fi
             $WELCOME_MSG
-            export SSHHOME=\$(mktemp -d -t .$(whoami).sshrc.XXXX)
+            export SSHHOME=\$(mktemp -d -t .$(whoami).sshrc.XXXXXX)
             export SSHRCCLEANUP=\$SSHHOME
             trap \"rm -rf \$SSHRCCLEANUP; exit\" 0
             echo $'$(base64 < "$0")' | tr -s ' ' $'\n' | base64 -d > \$SSHHOME/sshrc
