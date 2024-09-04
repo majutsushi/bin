@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+#
+# References:
+# https://specifications.freedesktop.org/idle-inhibit-spec/latest/
+# https://gabmus.org/posts/making-a-dbus-daemon/
+# https://github.com/loops/idlehack/blob/fd73c76c2d289f9eb9ad9b0695fa9e9f151be22f/idlehack.c
+
+# mypy: disable-error-code="misc, import-untyped"
+# pyright: basic
+# ruff: noqa: BLE001, N802, S311, S603, S607, ERA001, TRY400
+
+import argparse
+import logging
+import random
+import signal
+import subprocess
+import sys
+from dataclasses import dataclass
+from functools import partial
+from typing import Any
+
+import dbus
+import dbus.service
+from dbus.mainloop.glib import DBusGMainLoop
+from gi.repository import GLib  # pyright: ignore
+from systemd.journal import JournalHandler
+
+BUS_NAME = "org.freedesktop.ScreenSaver"
+OBJECT_PATH = "/org/freedesktop/ScreenSaver"
+OBJECT_PATH_OLD = "/ScreenSaver"
+INTERFACE = "org.freedesktop.ScreenSaver"
+
+logging.basicConfig(
+    format="%(message)s",
+    level=logging.INFO,
+    handlers=[
+        JournalHandler(
+            UNIT="screensaver-inhibit.service",
+            SYSLOG_IDENTIFIER="screensaver-inhibit",
+        )
+    ],
+)
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class InhibitingApp:
+    peer: str
+    name: str
+    reason: str
+    cookie: int
+
+
+INHIBITORS: dict[int, InhibitingApp] = {}
+
+
+class ScreensaverInhibitor(dbus.service.Object):
+    def __init__(self, bus_name: dbus.service.BusName):
+        self.SUPPORTS_MULTIPLE_OBJECT_PATHS = True
+        super().__init__(bus_name, OBJECT_PATH)
+        self.conn = bus_name.get_bus()
+        self.add_to_connection(self.conn, OBJECT_PATH_OLD)
+
+    @dbus.service.method(
+        dbus_interface=INTERFACE,
+        in_signature="ss",
+        out_signature="u",
+        sender_keyword="sender",
+    )
+    def Inhibit(self, app_name: str, reason: str, sender: str) -> int:
+        while (cookie := random.randint(0, 2**32 - 1)) in INHIBITORS:
+            pass
+        app = InhibitingApp(sender, app_name, reason, cookie)
+        log.debug("Inhibiting screensaver for app %s", app)
+        self.conn.watch_name_owner(sender, partial(watch_callback, sender))
+        inhibit()
+        INHIBITORS[cookie] = app
+        return cookie
+
+    @dbus.service.method(dbus_interface=INTERFACE, in_signature="u")
+    def UnInhibit(self, cookie: int) -> None:
+        app = INHIBITORS.pop(cookie, None)
+        if app is None:
+            log.debug("Received uninhibit request for unknown cookie %s", cookie)
+        else:
+            log.debug("Uninhibiting screensaver for app %s", app)
+        uninhibit()
+
+    @dbus.service.method(
+        dbus_interface=dbus.PROPERTIES_IFACE, in_signature="s", out_signature="a{sv}"
+    )
+    def GetAll(self, interface: dbus.String) -> dict[dbus.String, Any]:
+        log.debug("%s.GetAll(%s) called", dbus.PROPERTIES_IFACE, interface)
+        return {}
+
+
+def main(args: argparse.Namespace) -> int:
+    if args.verbose:
+        log.setLevel(logging.DEBUG)
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGUSR1, signal_handler)
+
+    DBusGMainLoop(set_as_default=True)
+    try:
+        bus_name = dbus.service.BusName(
+            BUS_NAME, bus=dbus.SessionBus(), do_not_queue=True
+        )
+    except dbus.exceptions.NameExistsException:
+        log.warning("Service with id %s is already running", BUS_NAME)
+        return 1
+    loop = GLib.MainLoop()
+    _ = ScreensaverInhibitor(bus_name)
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        log.info("KeyboardInterrupt received")
+    except Exception as e:
+        log.info("Caught exception: %s", e)
+    finally:
+        uninhibit(True)
+        loop.quit()
+
+    return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="run basic screensaver inhibitor")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="increase output verbosity",
+    )
+    return parser.parse_args()
+
+
+def inhibit() -> None:
+    log.debug("inhibit() called")
+    if not INHIBITORS:
+        log.debug("inhibiting screensaver")
+        run_command(["/usr/bin/xset", "s", "off"])
+        run_command(["/usr/bin/xset", "-dpms"])
+
+
+def uninhibit(force: bool = False) -> None:
+    log.debug("uninhibit(%s) called", force)
+    if force or not INHIBITORS:
+        log.debug("uninhibiting screensaver")
+        run_command(["/usr/bin/xset", "s", "on"])
+        run_command(["/usr/bin/xset", "+dpms"])
+
+
+def watch_callback(peer: str, arg: str | None) -> None:
+    log.debug("watch_callback called for peer %s with arg %s", peer, repr(arg))
+    if arg:
+        return
+    to_remove = {cookie for cookie, app in INHIBITORS.items() if app.peer == peer}
+    if not INHIBITORS or not to_remove:
+        return
+    for cookie in to_remove:
+        INHIBITORS.pop(cookie, None)
+    uninhibit()
+
+def run_command(args: list[str]) -> None:
+    log.debug("Running command: %s", args)
+    try:
+        subprocess.run(args, check=True)
+    except Exception as e:
+        log.error("Error running command %s: %s", args, e)
+
+
+def signal_handler(signum: int, _frame: Any) -> None:
+    signame = signal.Signals(signum).name
+    if signame == "SIGUSR1":
+        log.info("Inhibitors: %s", INHIBITORS)
+        return
+    log.info("Caught signal %s; exiting", signame)
+    uninhibit(True)
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    sys.exit(main(parse_args()))
