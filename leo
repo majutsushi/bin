@@ -3,13 +3,12 @@
 # License: MIT/X11
 
 import curses
-from urllib.parse import urlencode
-import sys
 import re
+import sys
+from urllib.parse import urlencode
 
 import requests
 from lxml import etree
-
 
 sgr0 = ""
 bold = ""
@@ -38,21 +37,19 @@ def process(s: str) -> str:
     s = re.sub(r"</b>", sgr0, s)
     s = re.sub(r"<i>", sitm, s)
     s = re.sub(r"</i>", ritm, s)
-    s = re.sub(r"<small>", "", s)
-    s = re.sub(r"</small>", "", s)
+    s = re.sub(r"</?small>", "", s)
     s = re.sub(r"<sup>", "<", s)
     s = re.sub(r"</sup>", ">", s)
-    s = re.sub(r"<sub>", "", s)
-    s = re.sub(r"</sub>", "", s)
+    s = re.sub(r"</?sub>", "", s)
     s = re.sub(r"<a[^>]*?>", "", s)
     s = re.sub(r"</a>", "", s)
-    s = re.sub(r"<m>", "", s)
-    s = re.sub(r"</m>", "", s)
+    s = re.sub(r"</?m>", "", s)
     s = re.sub(r"<t[^>]*?>", "", s)
     s = re.sub(r"</t>", "", s)
     s = re.sub(r"<sr[^>]*?>", "", s)
     s = re.sub(r"</sr>", "", s)
     # s = re.sub(r'<[^>]+?>', '', s)
+    s = re.sub(r"</?virr>", "", s)
     s = re.sub(r"\xa0", "", s)
     s = re.sub(r"&#160;", "", s)
     s = re.sub(r"&nbsp;", "", s)
