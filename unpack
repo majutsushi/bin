@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # Author: Jan Larres <jan@majutsushi.net>
 # License: MIT/X11
+#
+# pyright: basic
+# ruff: noqa: S603, S607
 
 import argparse
 import bz2
@@ -9,9 +12,12 @@ import lzma
 import os
 import shutil
 import subprocess
+import sys
+from functools import partial
+from io import BufferedIOBase
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import BinaryIO, Callable  # noqa: UP035
+from typing import Callable, List, Optional
 
 MIMETYPES = {
     "application/vnd.comicbook+zip": "zip",
@@ -29,15 +35,18 @@ class UnpackError(Exception):
     pass
 
 
-def main(args: argparse.Namespace) -> None:
+def main(args: argparse.Namespace) -> int:
     register_formats()
 
     try:
         do_unpack(args.archive, Path.cwd())
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         if args.verbose:
             raise
         print(e)
+        return 1
+
+    return 0
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,82 +67,41 @@ def register_formats() -> None:
     shutil.register_unpack_format(
         "zip2",
         [".jar", ".war", ".ear", ".xpi", ".cbz", ".epub"],
-        shutil._unpack_zipfile,  # type: ignore[attr-defined]
+        shutil._unpack_zipfile,  # type: ignore[attr-defined]  # noqa: SLF001
         description="Additional ZIP extensions",
     )
 
-    shutil.register_unpack_format("7z", [".7z"], unpack_7z)
-    shutil.register_unpack_format("arc", [".arc"], unpack_arc)
-    shutil.register_unpack_format(
-        "bz2", [".bz2"], expand_file, extra_args=[("open_func", bz2.open)]
-    )
-    shutil.register_unpack_format("deb", [".deb"], unpack_deb)
-    shutil.register_unpack_format(
-        "gz", [".gz", ".Z"], expand_file, extra_args=[("open_func", gzip.open)]
-    )
-    shutil.register_unpack_format("lha", [".lha", ".lzh"], unpack_lha)
-    shutil.register_unpack_format("rpm", [".rpm"], unpack_rpm)
+    # Builtin functions
+    shutil.register_unpack_format("bz2", [".bz2"], partial(run_builtin, bz2.open))
+    shutil.register_unpack_format("gz", [".gz", ".Z"], partial(run_builtin, gzip.open))
     shutil.register_unpack_format(
         "xz",
         [".xz", ".lzma"],
-        expand_file,
-        extra_args=[("open_func", lzma.open)],
+        partial(run_builtin, lzma.open),
     )
-    shutil.register_unpack_format("zoo", [".zoo"], unpack_zoo)
 
-    unrar_func = unpack_rar if shutil.which("unrar") else unpack_7z
-    shutil.register_unpack_format("rar", [".rar", ".cbr"], unrar_func)
+    def register_tools(
+        name: str,
+        extensions: List[str],
+        tools: List[Callable[[str, str], Optional[str]]],
+    ) -> None:
+        shutil.register_unpack_format(name, extensions, partial(run_tool, tools))
 
+    register_tools("7z", [".7z"], [run_7z])
+    register_tools("arc", [".arc"], [run_unar, run_arc])
+    register_tools("iso", [".iso"], [run_unar])
+    register_tools("lha", [".lha", ".lzh"], [run_lha])
+    register_tools("zoo", [".zoo"], [run_unar])
+    register_tools(
+        "rar",
+        [".rar", ".cbr"],
+        # Run generic 'unrar' last since the free version has encoding issues
+        [run_unrar_nonfree, run_7z, run_unar, run_unrar],
+    )
 
-def expand_file(
-    archive: str,
-    output_dir: str,
-    open_func: Callable[[Path], BinaryIO],
-) -> None:
-    archive_path = Path(archive)
-    with open_func(archive_path) as src, Path(output_dir, archive_path.stem).open(
-        "wb"
-    ) as dst:
-        shutil.copyfileobj(src, dst)
-
-
-def unpack_7z(archive: str, output_dir: str) -> None:
-    subprocess.run(["7z", "x", f"-o{output_dir}", archive], check=True)
-
-
-def unpack_arc(archive: str, output_dir: str) -> None:
-    if shutil.which("unar"):
-        subprocess.run(["unar", "-o", output_dir, archive], check=True)
-    else:
-        subprocess.run(["arc", "x", archive], cwd=output_dir, check=True)
-
-
-def unpack_deb(archive: str, output_dir: str) -> None:
-    subprocess.run(["ar", "x", archive], cwd=output_dir, check=True)
-    data = next(Path(output_dir).glob("data.tar.*"))
-    do_unpack(data, Path(output_dir))
-    data.unlink()
-    control = next(Path(output_dir).glob("control.tar.*"))
-    do_unpack(control, Path(output_dir))
-    control.unlink()
-
-
-def unpack_lha(archive: str, output_dir: str) -> None:
-    subprocess.run(["lha", "-x", archive], cwd=output_dir, check=True)
-
-
-def unpack_rar(archive: str, output_dir: str) -> None:
-    subprocess.run(["unrar", "x", archive, f"{output_dir}/"], check=True)
-
-
-def unpack_rpm(archive: str, output_dir: str) -> None:
-    proc = subprocess.Popen(["rpm2cpio", archive], stdout=subprocess.PIPE)
-    subprocess.run(["cpio", "-idmv"], cwd=output_dir, stdin=proc.stdout, check=True)
-    proc.wait()
-
-
-def unpack_zoo(archive: str, output_dir: str) -> None:
-    subprocess.run(["unar", "-o", output_dir, archive], check=True)
+    # Formats that require more complex unpacking
+    shutil.register_unpack_format("deb", [".deb"], unpack_deb)
+    shutil.register_unpack_format("rpm", [".rpm"], unpack_rpm)
 
 
 def do_unpack(archive: Path, output_path: Path) -> None:
@@ -143,7 +111,7 @@ def do_unpack(archive: Path, output_path: Path) -> None:
             shutil.unpack_archive(archive, tmpdir)
         except shutil.ReadError as e:
             # Try getting the mimetype with Gio
-            from gi.repository import Gio
+            from gi.repository import Gio  # type: ignore[import-untyped]
 
             with archive.open("rb") as f:
                 mime = Gio.content_type_guess(
@@ -181,6 +149,96 @@ def do_unpack(archive: Path, output_path: Path) -> None:
             print(f"Unpacked {archive} to {get_display_path(output_path)}")
 
 
+def run_builtin(
+    func: Callable[[str], BufferedIOBase],
+    archive: str,
+    output_dir: str,
+) -> None:
+    archive_path = Path(archive)
+    with func(archive) as src, Path(output_dir, archive_path.stem).open("wb") as dst:
+        shutil.copyfileobj(src, dst)
+
+
+def run_tool(
+    tool_funcs: List[Callable[[str, str], Optional[str]]], archive: str, output_dir: str
+) -> None:
+    tried = []
+    for func in tool_funcs:
+        missing_tool = func(archive, output_dir)
+        if missing_tool is None:
+            break
+        tried.append(missing_tool)
+    else:
+        raise UnpackError(
+            f"Unable to find a tool for unpacking {archive}\n"
+            f"Supported tools: {','.join(tried)}"
+        )
+
+
+def run_7z(archive: str, output_dir: str) -> Optional[str]:
+    tool = "7z"
+    if shutil.which(tool):
+        subprocess.run([tool, "x", f"-o{output_dir}", archive], check=True)
+        return None
+    return tool
+
+
+def run_arc(archive: str, output_dir: str) -> Optional[str]:
+    tool = "arc"
+    if shutil.which(tool):
+        subprocess.run([tool, "x", archive], cwd=output_dir, check=True)
+        return None
+    return tool
+
+
+def run_lha(archive: str, output_dir: str) -> Optional[str]:
+    tool = "lha"
+    if shutil.which(tool):
+        subprocess.run([tool, "-x", archive], cwd=output_dir, check=True)
+        return None
+    return tool
+
+
+def run_unar(archive: str, output_dir: str) -> Optional[str]:
+    tool = "unar"
+    if shutil.which(tool):
+        subprocess.run([tool, "-o", output_dir, archive], check=True)
+        return None
+    return tool
+
+
+def run_unrar(archive: str, output_dir: str) -> Optional[str]:
+    tool = "unrar"
+    if shutil.which(tool):
+        subprocess.run([tool, "x", archive, f"{output_dir}/"], check=True)
+        return None
+    return tool
+
+
+def run_unrar_nonfree(archive: str, output_dir: str) -> Optional[str]:
+    tool = "unrar-nonfree"
+    if shutil.which(tool):
+        subprocess.run([tool, "x", archive, f"{output_dir}/"], check=True)
+        return None
+    return tool
+
+
+def unpack_deb(archive: str, output_dir: str) -> None:
+    subprocess.run(["ar", "x", archive], cwd=output_dir, check=True)
+    data = next(Path(output_dir).glob("data.tar.*"))
+    do_unpack(data, Path(output_dir))
+    data.unlink()
+    control = next(Path(output_dir).glob("control.tar.*"))
+    do_unpack(control, Path(output_dir))
+    control.unlink()
+
+
+def unpack_rpm(archive: str, output_dir: str) -> None:
+    proc = subprocess.Popen(["rpm2cpio", archive], stdout=subprocess.PIPE)
+    subprocess.run(["cpio", "-idmv"], cwd=output_dir, stdin=proc.stdout, check=True)
+    proc.wait()
+
+
 def get_display_path(abs_path: Path) -> Path:
     try:
         return abs_path.relative_to(Path.cwd())
@@ -189,4 +247,4 @@ def get_display_path(abs_path: Path) -> Path:
 
 
 if __name__ == "__main__":
-    main(parse_args())
+    sys.exit(main(parse_args()))
