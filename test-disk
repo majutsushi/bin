@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -eEu -o pipefail
+IFS=$'\n\t'
+PS4='+\t '
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+
+if (( $# != 1 )); then
+    echo "usage: $0 <device>" >&2
+    exit 1
+fi
+
+readonly DEVICE=$1
+
+SECTORS=$(lsblk -o NAME,PHY-SEC -P -p "$DEVICE" | while read -r line; do
+    eval "$line"
+    if [[ "$NAME" == "$DEVICE" ]]; then
+        echo "$PHY_SEC"
+        break
+    fi
+done)
+
+sudo badblocks -wsv -b "$SECTORS" -t 0x00 "$DEVICE"
+
+# https://www.smartmontools.org/wiki/SAT-with-UAS-Linux
+sudo smartctl -H "$DEVICE"
+sudo smartctl -t short "$DEVICE"
