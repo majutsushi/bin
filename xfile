@@ -18,7 +18,7 @@ has_cmd() {
 
 if has_cmd gio; then
     echo "---- shared-mime-info type ----"
-    gio info --attributes=standard::content-type "$FILE_PATH" | tail -n 1 | cut -d" " -f4
+    gio info --attributes=standard::content-type "$FILE_PATH" | awk '/standard::content-type/ { print $2 }'
     echo
 fi
 if has_cmd mimetype; then
