@@ -81,7 +81,7 @@ def subheader(text: str) -> str:
 def main() -> None:
     if len(sys.argv) == 1:
         print("Usage: leo <words>")
-        exit()
+        sys.exit()
 
     search_words = " ".join(sys.argv[1:])
 
@@ -163,7 +163,7 @@ def main() -> None:
 
     if not len(sections) and not len(similar) and not len(baseforms):
         print("No results found.")
-        exit()
+        sys.exit()
 
 
 if __name__ == "__main__":
