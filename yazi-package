@@ -2,6 +2,31 @@
 # Author: Jan Larres <jan@majutsushi.net>
 # License: MIT/X11
 #
+# This tool manages Yazi packages similarly to 'ya pack',
+# with the difference that it will automatically create a
+# .gitignore file to ignore installed packages, and it doesn't
+# write hashes to the package config. This means that updating
+# a package will not lead to a dirty repo if the config
+# directory is under version control.
+#
+# It also stores the repositories in $XDG_CACHE_HOME instead of
+# $XDG_STATE_HOME since they are effectively just caches, and this
+# way they get automatically excluded from things like backups.
+#
+# Create a config file ~/.config/yazi/packages.yaml with content like this:
+#
+# - url: https://github.com/KKV9/compress.yazi
+# - url: https://github.com/yazi-rs/plugins
+#   path: chmod.yazi
+# - url: https://github.com/yazi-rs/plugins
+#   path: git.yazi
+#   commit: '0b9f325fe9d1edbc6d7893344cd308533ebd827a'
+#
+# Supported keys:
+# url (required): URL of the repository
+# path (optional): Path to the plugin inside the repository
+# commit (optional): The commit to pin the package to
+#
 # See https://github.com/sxyazi/yazi/blob/main/yazi-cli/src/package
 
 import argparse
