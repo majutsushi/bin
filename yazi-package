@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+# Author: Jan Larres <jan@majutsushi.net>
+# License: MIT/X11
+#
+# See https://github.com/sxyazi/yazi/blob/main/yazi-cli/src/package
+
+import argparse
+import dataclasses
+import hashlib
+import logging
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import platformdirs
+import yaml
+
+CONFIG_PATH = Path(
+    os.getenv("YAZI_CONFIG_HOME", platformdirs.user_config_path("yazi"))
+).expanduser()
+PACKAGE_CONFIG = CONFIG_PATH / "packages.yaml"
+PLUGINS_PATH = CONFIG_PATH / "plugins"
+FLAVORS_PATH = CONFIG_PATH / "flavors"
+REPOS_PATH = platformdirs.user_cache_path("yazi-package")
+
+MARKER_FILE = ".yazi-package"
+FLAVOR_FILES = [
+    "flavor.toml",
+    "tmtheme.xml",
+    "README.md",
+    "preview.png",
+    "LICENSE",
+    "LICENSE-tmtheme",
+]
+PLUGIN_FILES = ["init.lua", "README.md", "LICENSE"]
+
+
+logging.basicConfig(format="%(message)s", level=logging.INFO)
+log = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class Package:
+    url: str
+    path: str = ""
+    commit: str | None = None
+
+    def name(self) -> str:
+        name = self.path if self.path else self.url.split("/")[-1]
+        if not name.endswith(".yazi"):
+            name += ".yazi"
+        return name
+
+    def repo_cache(self) -> Path:
+        return REPOS_PATH / hashlib.sha256(self.url.encode()).hexdigest()
+
+
+def main(args: argparse.Namespace) -> int:
+    if args.verbose:
+        log.setLevel(logging.DEBUG)
+
+    args.func()
+
+    return 0
+
+
+def install() -> None:
+    packages = read_package_config()
+
+    for package in packages:
+        install_package(package, skip_installed=True)
+
+
+def update() -> None:
+    packages = read_package_config()
+
+    for package in packages:
+        install_package(package, skip_installed=False)
+
+
+def uninstall() -> None:
+    configured_packages = read_package_config()
+    installed_packages = get_managed_packages()
+    to_delete = installed_packages.keys() - set(configured_packages)
+
+    for package in to_delete:
+        log.info("Uninstalling package %s", package.name())
+        shutil.rmtree(installed_packages[package])
+        package_repo = package.repo_cache()
+        if package_repo.exists():
+            shutil.rmtree(package_repo)
+
+
+def clean() -> None:
+    packages = get_managed_packages()
+    for package in packages.values():
+        shutil.rmtree(package)
+    if REPOS_PATH.exists():
+        shutil.rmtree(REPOS_PATH)
+
+
+def install_package(package: Package, skip_installed: bool) -> None:
+    source_path = package.repo_cache() / package.path
+    is_flavor = (source_path / "flavor.toml").exists()
+    target_path = (
+        FLAVORS_PATH / package.name() if is_flavor else PLUGINS_PATH / package.name()
+    )
+    marker = target_path / MARKER_FILE
+
+    if target_path.exists() and not marker.exists():
+        log.warning("Non-managed package %s already exists; skipping", package.name())
+        return
+    if target_path.exists() and skip_installed:
+        return
+
+    if package.repo_cache().exists():
+        log.info("Updating repository %s", package.url)
+        git(["fetch", "-q"], cwd=package.repo_cache())
+        git(["checkout", "-q", "origin/HEAD"], cwd=package.repo_cache())
+    else:
+        log.info("Cloning repository %s", package.url)
+        git(["clone", "-q", package.url, str(package.repo_cache())])
+
+    # Check out pinned commit
+    if package.commit:
+        git(["checkout", "-q", package.commit], cwd=package.repo_cache())
+
+    # Copy package files to config directory
+    verb = "Updating" if target_path.exists() else "Installing"
+    log.info("%s package %s", verb, package.name())
+    target_path.mkdir(parents=True, exist_ok=True)
+    files = FLAVOR_FILES if is_flavor else PLUGIN_FILES
+    for file in files:
+        shutil.copy(source_path / file, target_path)
+
+    git_ignore = target_path / ".gitignore"
+    git_ignore.write_text("*\n")
+    marker.write_text(yaml.dump(dataclasses.asdict(package)))
+
+
+def get_managed_packages() -> dict[Package, Path]:
+    packages: dict[Package, Path] = {}
+
+    for path in (PLUGINS_PATH, FLAVORS_PATH):
+        for package_path in (
+            package_path.parent for package_path in path.glob("**/" + MARKER_FILE)
+        ):
+            with (package_path / MARKER_FILE).open() as f:
+                package = Package(**yaml.safe_load(f))
+            packages[package] = package_path
+
+    return packages
+
+
+def read_package_config() -> list[Package]:
+    with PACKAGE_CONFIG.open() as f:
+        package_config: list[dict[str, str]] = yaml.safe_load(f)
+    return [Package(**item) for item in package_config]
+
+
+def git(args: list[str], cwd: Path | None = None) -> None:
+    subprocess.run(["git", *args], check=True, cwd=cwd)  # noqa: S603, S607
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="manage yazi packages")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="increase output verbosity",
+    )
+
+    subparsers = parser.add_subparsers(required=True)
+
+    install_parser = subparsers.add_parser(
+        "install", help="install configured packages"
+    )
+    install_parser.set_defaults(func=install)
+
+    update_parser = subparsers.add_parser("update", help="update all packages")
+    update_parser.set_defaults(func=update)
+
+    uninstall_parser = subparsers.add_parser(
+        "uninstall", help="delete packages that are no longer configured"
+    )
+    uninstall_parser.set_defaults(func=uninstall)
+
+    clean_parser = subparsers.add_parser(
+        "clean", help="delete all managed packages and caches"
+    )
+    clean_parser.set_defaults(func=clean)
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    sys.exit(main(parse_args()))
