@@ -4,7 +4,7 @@ run_vim() {
     # Remove script dir from $PATH to avoid infinite recursion
     MYDIR="$(dirname "$(readlink -f "$0")")"
     MYNAME="$(basename "$0")"
-    NEWPATH=$(echo "$PATH" | sed -r -e "s,${MYDIR}/?:,,")
+    NEWPATH=$(echo "$PATH" | sed -r -e "s,${MYDIR}/?:,,g")
     VIMBIN=$(PATH=$NEWPATH command -v "$MYNAME")
 
     if [[ -n $RANGER_LEVEL || -n $YAZI_LEVEL ]] \
