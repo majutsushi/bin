@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -eEu -o pipefail
+shopt -s inherit_errexit
+IFS=$'\n\t'
+PS4='+\t '
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+[[ "${TRACE:-0}" == "1" ]] && set -x
+
+
+if [[ $OSTYPE == darwin* ]]; then
+    copy()  { perl -pe "chomp if eof" | pbcopy "$@"; }
+    paste() { pbpaste "$@" | perl -pe "chomp if eof"; }
+elif [[ "${XDG_SESSION_TYPE:-}" == wayland ]]; then
+    copy()  { wl-copy --trim-newline "$@"; }
+    paste() { wl-paste --no-newline "$@"; }
+elif [[ -n "${DISPLAY:-}" ]] && command -v xclip > /dev/null; then
+    copy()  { xclip -i -selection clipboard -rmlastnl "$@"; }
+    paste() { xclip -o -selection clipboard -rmlastnl "$@"; }
+else
+    echo "No supported clipboard tool found" >&2
+    exit 1
+fi
+
+if [[ -t 0 ]]; then
+    paste "$@"
+else
+    copy "$@"
+fi
