@@ -2,6 +2,7 @@
 # Author: Jan Larres <jan@majutsushi.net>
 # License: MIT/X11
 
+import os
 import sys
 import unicodedata
 from subprocess import CalledProcessError, run
@@ -13,15 +14,19 @@ def main() -> int:
     chars = [
         c + "\t" + name
         for c, name in (
-            (c, unicodedata.name(c, None)) for c in map(chr, range(0x0, UNICODE_END))
+            (c, unicodedata.name(c, None)) for c in map(chr, range(UNICODE_END))
         )
         if name is not None
     ]
     stdin = "\n".join(chars)
 
     try:
+        if os.environ.get("XDG_SESSION_TYPE") == "wayland":
+            cmd = ["fuzzel", "--dmenu"]
+        else:
+            cmd = ["rofi", "-dmenu", "-i"]
         p = run(
-            ["rofi", "-dmenu", "-i"],
+            cmd,
             input=stdin,
             text=True,
             check=True,
@@ -33,13 +38,13 @@ def main() -> int:
     selected = p.stdout.splitlines()[0].split("\t")[0]
     try:
         p = run(
-            ["xclip", "-i", "-selection", "clipboard"],
+            ["cb"],
             input=selected,
             text=True,
             check=True,
         )
     except Exception as e:
-        run(["rofi", "-e", str(e)], check=True)
+        run(["zenity", "--error", f"--text={e}"], check=True)
         raise
 
     return 0
