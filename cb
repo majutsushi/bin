@@ -12,21 +12,21 @@ trap 'error_handler ${LINENO} $?' ERR
 
 
 if [[ $OSTYPE == darwin* ]]; then
-    copy()  { perl -pe "chomp if eof" | pbcopy "$@"; }
-    paste() { pbpaste "$@" | perl -pe "chomp if eof"; }
+    copy()  { perl -pe "chomp if eof" | pbcopy; }
+    paste() { pbpaste | perl -pe "chomp if eof"; }
 elif [[ "${XDG_SESSION_TYPE:-}" == wayland ]]; then
-    copy()  { wl-copy --trim-newline "$@"; }
-    paste() { wl-paste --no-newline "$@"; }
+    copy()  { wl-copy --trim-newline; }
+    paste() { wl-paste --no-newline; }
 elif [[ -n "${DISPLAY:-}" ]] && command -v xclip > /dev/null; then
-    copy()  { xclip -i -selection clipboard -rmlastnl "$@"; }
-    paste() { xclip -o -selection clipboard -rmlastnl "$@"; }
+    copy()  { xclip -i -selection clipboard -rmlastnl; }
+    paste() { xclip -o -selection clipboard -rmlastnl; }
 else
     echo "No supported clipboard tool found" >&2
     exit 1
 fi
 
-if [[ -t 0 ]]; then
-    paste "$@"
+if [[ -p /dev/stdin ]]; then
+    copy
 else
-    copy "$@"
+    paste
 fi
