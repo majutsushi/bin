@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+set -eEu -o pipefail
+shopt -s inherit_errexit
+IFS=$'\n\t'
+PS4='+\t '
+
+error_handler() { echo "Error: Line ${1} exited with status ${2}"; }
+trap 'error_handler ${LINENO} $?' ERR
+
+[[ "${TRACE:-0}" == "1" ]] && set -x
+
+
+is-threshold-enabled() {
+    local state
+    state=$(busctl get-property \
+        org.freedesktop.UPower \
+        /org/freedesktop/UPower/devices/battery_BAT0 \
+        org.freedesktop.UPower.Device \
+        ChargeThresholdEnabled)
+    [[ $state == "b true" ]]
+}
+
+set-threshold-enabled() {
+    busctl call \
+        org.freedesktop.UPower \
+        /org/freedesktop/UPower/devices/battery_BAT0 \
+        org.freedesktop.UPower.Device \
+        EnableChargeThreshold b "$1"
+}
+
+if (( $# < 1 )); then
+    if is-threshold-enabled; then
+        echo Charge threshold is enabled
+    else
+        echo Charge threshold is disabled
+    fi
+    exit 0
+fi
+
+case "$1" in
+    toggle)
+        if is-threshold-enabled; then
+            set-threshold-enabled False
+        else
+            set-threshold-enabled True
+        fi
+        ;;
+    enable)
+        set-threshold-enabled True ;;
+    disable)
+        set-threshold-enabled False ;;
+    *)
+        echo "usage: $(basename "$0") [toggle|enable|disable]" >&2
+        exit 1
+        ;;
+esac
