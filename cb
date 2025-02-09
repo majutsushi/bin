@@ -21,8 +21,12 @@ elif [[ -n "${DISPLAY:-}" ]] && command -v xclip > /dev/null; then
     copy()  { xclip -i -selection clipboard -rmlastnl; }
     paste() { xclip -o -selection clipboard -rmlastnl; }
 else
-    echo "No supported clipboard tool found" >&2
-    exit 1
+    copy()  {
+        local content
+        content="$(base64 | perl -pe "chomp if eof")"
+        printf "\033]52;c;%s\007" "$content"
+    }
+    paste() { echo "Pasting not supported with OSC 52" >&2; exit 1; }
 fi
 
 if [[ -p /dev/stdin ]]; then
