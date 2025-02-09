@@ -70,7 +70,7 @@ FLAVOR_FILES = [
     "LICENSE",
     "LICENSE-tmtheme",
 ]
-PLUGIN_FILES = ["init.lua", "README.md", "LICENSE"]
+PLUGIN_FILES = ["main.lua", "init.lua", "README.md", "LICENSE"]
 
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
@@ -169,7 +169,8 @@ def install_package(package: Package, skip_installed: bool) -> None:
     target_path.mkdir(parents=True, exist_ok=True)
     files = FLAVOR_FILES if is_flavor else PLUGIN_FILES
     for file in files:
-        shutil.copy(source_path / file, target_path)
+        if Path(source_path, file).exists():
+            shutil.copy(source_path / file, target_path)
 
     git_ignore = target_path / ".gitignore"
     git_ignore.write_text("*\n")
