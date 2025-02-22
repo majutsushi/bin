@@ -36,8 +36,8 @@ if has_cmd hexyl; then
     echo
     echo "---- First 256 bytes ----"
     hexyl --length 256 --color always "$FILE_PATH"
-elif has_cmd xxd; then
+elif has_cmd hexdump; then
     echo
     echo "---- First 256 bytes ----"
-    xxd -l 256 "$FILE_PATH"
+    hexdump --length 256 --canonical "$FILE_PATH"
 fi
