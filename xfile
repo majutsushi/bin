@@ -39,5 +39,5 @@ if has_cmd hexyl; then
 elif has_cmd hexdump; then
     echo
     echo "---- First 256 bytes ----"
-    hexdump --length 256 --canonical "$FILE_PATH"
+    hexdump -n 256 -C "$FILE_PATH"
 fi
