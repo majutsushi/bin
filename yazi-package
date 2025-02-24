@@ -1,4 +1,4 @@
-#!/usr/bin/env -S pipx run
+#!/usr/bin/env -S uv run --script
 # Author: Jan Larres <jan@majutsushi.net>
 # License: MIT/X11
 #
