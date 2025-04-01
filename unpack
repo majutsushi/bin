@@ -110,13 +110,23 @@ def do_unpack(archive: Path, output_path: Path) -> None:
         try:
             shutil.unpack_archive(archive, tmpdir)
         except shutil.ReadError as e:
-            # Try getting the mimetype with Gio
-            from gi.repository import Gio  # type: ignore[import-untyped]
+            print("Error unpacking, trying mimetype detection: " + str(e))
+            try:
+                # Try getting the mimetype with Gio
+                from gi.repository import Gio  # type: ignore[import-untyped]
 
-            with archive.open("rb") as f:
-                mime = Gio.content_type_guess(
-                    filename=os.fspath(archive), data=f.read(1024)
-                )[0]
+                with archive.open("rb") as f:
+                    mime = Gio.content_type_guess(
+                        filename=os.fspath(archive), data=f.read(1024)
+                    )[0]
+            except ImportError:
+                mime = (
+                    subprocess.check_output(
+                        ["file", "--mime-type", "--dereference", "--brief", archive]
+                    )
+                    .decode(sys.stdout.encoding)
+                    .strip()
+                )
             if mime in MIMETYPES:
                 try:
                     shutil.unpack_archive(archive, tmpdir, format=MIMETYPES[mime])
