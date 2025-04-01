@@ -28,6 +28,7 @@ MIMETYPES = {
     "application/x-lha": "lha",
     "application/x-tar": "tar",
     "application/x-xz-compressed-tar": "xztar",
+    "application/zip": "zip",
 }
 
 
