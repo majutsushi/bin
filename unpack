@@ -149,8 +149,9 @@ def do_unpack(archive: Path, output_path: Path) -> None:
         else:
             # Move multiple items into a new directory named after the archive
             output_dirname = archive.stem
-            if output_dirname.endswith(".tar"):
-                output_dirname = output_dirname[: -len(".tar")]
+            output_dirname = output_dirname.removesuffix(".tar")
+            if output_dirname == archive.name:
+                output_dirname += ".unpack"
             output_path = output_path / output_dirname
             if output_path.exists():
                 raise UnpackError(f"Directory {output_path} already exists")
