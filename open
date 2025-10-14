@@ -12,7 +12,9 @@ trap 'error_handler ${LINENO} $?' ERR
 
 # Try gio first since xdg-open defaults to mailcap
 # in non-recognized desktop environments
-if command -v gio >/dev/null; then
+if [[ $OSTYPE == darwin* ]]; then
+    exec /usr/bin/open "$@"
+elif command -v gio >/dev/null; then
     exec gio open "$@"
 elif command -v /usr/bin/xdg-open >/dev/null; then
     exec /usr/bin/xdg-open "$@"
