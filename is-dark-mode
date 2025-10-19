@@ -2,7 +2,7 @@
 
 set -u -o pipefail
 
-# https://flatpak.github.io/xdg-desktop-portal/#gdbus-org.freedesktop.portal.Settings
+# https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html
 if command -v dbus-send >/dev/null; then
     if setting=$(dbus-send \
                     --session \
