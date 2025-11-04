@@ -1,6 +1,15 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 # Author: Jan Larres <jan@majutsushi.net>
 # License: MIT/X11
+#
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "lxml",
+#     "requests",
+# ]
+# ///
+
 
 import curses
 import re
