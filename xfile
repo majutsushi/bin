@@ -28,6 +28,13 @@ if has_cmd mimetype; then
     mimetype --dereference --brief "$FILE_PATH"
     echo
 fi
+if [[ "$OSTYPE" == darwin* ]]; then
+    echo "---- macOS type ----"
+    UTI=$(mdls -name kMDItemContentType "$FILE_PATH" | sed -r -e 's/.*"([^"]+)"/\1/')
+    echo "$UTI"
+    echo "$UTI" | uti-to-mime
+    echo
+fi
 echo "---- magic(5) type ----"
 file --dereference --brief "$FILE_PATH"
 file --dereference --brief --mime "$FILE_PATH"
