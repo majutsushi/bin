@@ -1,0 +1,32 @@
+#!/usr/bin/env -S uv run --script
+#
+# Inspired by https://github.com/RhetTbull/utitools
+#
+# /// script
+# dependencies = [
+#     "pyobjc-framework-UniformTypeIdentifiers",
+# ]
+# ///
+
+
+import argparse
+import sys
+
+from UniformTypeIdentifiers import UTType
+
+
+def main(args: argparse.Namespace) -> int:
+    uti = args.uti if sys.stdin.isatty() else sys.stdin.read().strip()
+    ut_type = UTType.typeWithIdentifier_(uti)
+    print(ut_type.preferredMIMEType())
+    return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Translate UTI types to MIME types")
+    parser.add_argument("uti", nargs="?", help="the UTI type to translate")
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    sys.exit(main(parse_args()))
