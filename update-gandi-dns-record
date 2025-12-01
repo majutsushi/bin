@@ -34,7 +34,7 @@ def main(args: argparse.Namespace) -> int:
     if args.verbose:
         log.setLevel(logging.DEBUG)
 
-    r = requests.get("http://v4.ipv6-test.com/api/myip.php", timeout=60)
+    r = requests.get("https://api.ipify.org", timeout=60)
     r.raise_for_status()
     ipaddr = r.text.strip()
     log.debug("IP address: %s", ipaddr)
