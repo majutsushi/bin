@@ -3,102 +3,105 @@
 # License: MIT/X11
 
 import argparse
-import fileinput
 import json
-import os
-import requests
-import signal
-import sys
-
-try:
-    import keyring
-except ImportError:
-    pass
-
 import logging
-logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
+import sys
+from pathlib import Path
+
+import requests
+
+logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-BASE_URL = 'https://dns.api.gandi.net/api/v5'
+BASE_URL = "https://dns.api.gandi.net/api/v5"
 
-try:
-    import better_exceptions
-except Exception:
-    pass
-
-def sigint_handler(signal, frame):
-    sys.exit(1)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Update Gandi DNS record")
-    parser.add_argument("-v", "--verbose", action="store_true", default=False,
-                        help="increase output verbosity")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="increase output verbosity",
+    )
     parser.add_argument("domain", help="the domain name of the zone to change")
     parser.add_argument("host", help="the host name of the record to change")
     return parser.parse_args()
 
-def main(args):
+
+def main(args: argparse.Namespace) -> int:
     if args.verbose:
         log.setLevel(logging.DEBUG)
 
-    r = requests.get('http://v4.ipv6-test.com/api/myip.php')
+    r = requests.get("http://v4.ipv6-test.com/api/myip.php", timeout=60)
     r.raise_for_status()
     ipaddr = r.text.strip()
-    log.debug('IP address: ' + ipaddr)
+    log.debug("IP address: %s", ipaddr)
 
     apikey = None
-    keyfile = os.path.join(os.environ['HOME'], '.gandi-api-key')
-    if os.path.exists(keyfile):
-        with open(keyfile) as f:
+    keyfile = Path.home() / ".gandi-api-key"
+    if keyfile.exists():
+        with keyfile.open() as f:
             apikey = f.readline().strip()
     else:
-        apikey = keyring.get_password('gandi.net', 'production-api-key')
+        import keyring
+
+        apikey = keyring.get_password("gandi.net", "production-api-key")
 
     if apikey is None:
-        print('Unable to find API key')
-        sys.exit(1)
+        log.error("Unable to find API key")
+        return 1
 
-    headers = {
-        'Content-Type': 'application/json',
-        'X-Api-Key': apikey
-    }
+    headers = {"Content-Type": "application/json", "X-Api-Key": apikey}
 
-    r = requests.get(BASE_URL + '/domains/' + args.domain, headers=headers)
+    r = requests.get(f"{BASE_URL}/domains/{args.domain}", headers=headers, timeout=60)
     r.raise_for_status()
-    zone = r.json()['zone_uuid']
-    log.debug('Zone: ' + zone)
+    zone = r.json()["zone_uuid"]
+    log.debug("Zone: %s", zone)
 
-    # r = requests.get(BASE_URL + '/zones/' + zone + '/records', headers=headers).json()
-
-    r = requests.get(BASE_URL + '/zones/' + zone + '/records/' + args.host + '/A',
-                     headers=headers)
+    r = requests.get(
+        f"{BASE_URL}/zones/{zone}/records/{args.host}/A",
+        headers=headers,
+        timeout=60,
+    )
     r.raise_for_status()
-    old_ipaddr = r.json()['rrset_values'][0]
-    log.debug('Old IP address: ' + old_ipaddr)
+    old_ipaddr = r.json()["rrset_values"][0]
+    log.debug("Old IP address: %s", old_ipaddr)
 
     if ipaddr == old_ipaddr:
-        log.debug('IP address is identical to old address; not updating DNS record')
-        sys.exit(0)
+        log.debug("IP address is identical to old address; not updating DNS record")
+        return 0
 
     record_a = {
-        'rrset_name': args.host,
-        'rrset_type': 'A',
-        'rrset_ttl': 3600,
-        'rrset_values': [ipaddr]
+        "rrset_name": args.host,
+        "rrset_type": "A",
+        "rrset_ttl": 3600,
+        "rrset_values": [ipaddr],
     }
 
-    r = requests.delete(BASE_URL + '/zones/' + zone + '/records/' + args.host + '/A',
-                       headers=headers)
+    r = requests.delete(
+        f"{BASE_URL}/zones/{zone}/records/{args.host}/A",
+        headers=headers,
+        timeout=60,
+    )
     # r.raise_for_status()
     # log.debug('Delete response: ' + str(r.json()))
 
-    r = requests.post(BASE_URL + '/zones/' + zone + '/records',
-                      data=json.dumps(record_a), headers=headers)
-    log.debug('Post response A: ' + str(r.json()))
+    r = requests.post(
+        f"{BASE_URL}/zones/{zone}/records",
+        data=json.dumps(record_a),
+        headers=headers,
+        timeout=60,
+    )
+    log.debug("Post response A: %s", r.json())
     r.raise_for_status()
 
-    print('Successfully updated ' + args.host + '.' + args.domain + ' DNS record to ' + ipaddr)
+    log.info(
+        "Successfully updated %s.%s DNS record to %s", args.host, args.domain, ipaddr
+    )
+    return 0
+
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, sigint_handler)
     sys.exit(main(parse_args()))
