@@ -11,7 +11,7 @@ trap 'error_handler ${LINENO} $?' ERR
 [[ "${TRACE:-0}" == "1" ]] && set -x
 
 
-if [[ $OSTYPE == darwin* ]]; then
+if [[ $OSTYPE == darwin* ]] || [[ -z "$OSTYPE" && $(uname -o) == Darwin ]]; then
     copy()  { perl -pe "chomp if eof" | pbcopy; }
     paste() { pbpaste | perl -pe "chomp if eof"; }
 elif [[ "${XDG_SESSION_TYPE:-}" == wayland ]]; then
