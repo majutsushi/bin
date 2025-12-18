@@ -23,6 +23,7 @@ MIMETYPES = {
     "application/vnd.comicbook+zip": "zip",
     "application/vnd.comicbook-rar": "rar",
     "application/x-7z-compressed": "7z",
+    "application/x-cb7": "7z",
     "application/x-bzip-compressed-tar": "bztar",
     "application/x-compressed-tar": "gztar",
     "application/x-lha": "lha",
@@ -88,7 +89,7 @@ def register_formats() -> None:
     ) -> None:
         shutil.register_unpack_format(name, extensions, partial(run_tool, tools))
 
-    register_tools("7z", [".7z"], [run_7z])
+    register_tools("7z", [".7z", ".cb7"], [run_7z])
     register_tools("arc", [".arc"], [run_unar, run_arc])
     register_tools("iso", [".iso"], [run_unar])
     register_tools("lha", [".lha", ".lzh"], [run_lha])
