@@ -36,8 +36,9 @@ if [[ "$OSTYPE" == darwin* ]]; then
     echo
 fi
 echo "---- magic(5) type ----"
-file --dereference --brief "$FILE_PATH"
-file --dereference --brief --mime "$FILE_PATH"
+file --keep-going --dereference --brief "$FILE_PATH" | sed -r -e 's/\\012/\n/g' | head -n -1
+echo "----"
+file --keep-going --dereference --brief --mime "$FILE_PATH" | sed -r -e 's/\\012/\n/g' | head -n -1
 
 if has_cmd hexyl; then
     echo
